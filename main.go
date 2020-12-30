@@ -39,9 +39,21 @@ func main() {
 		if err != nil {
 			return err
 		}
-		// fmt.Printf("config %#v\n", config)
+		if c.Args().Len() > 0 {
+			config.ScanDirs.Include = c.Args().Slice()
+		}
+		for i := range config.ScanDirs.Include {
+			config.ScanDirs.Include[i] = os.ExpandEnv(config.ScanDirs.Include[i])
+		}
+		for i := range config.ScanDirs.Exclude {
+			config.ScanDirs.Exclude[i] = os.ExpandEnv(config.ScanDirs.Exclude[i])
+		}
+		// b, err := yaml.Marshal(&config)
+		// if err != nil {
+		// 	return err
+		// }
+		// fmt.Println(string(b))
 		// os.Exit(1)
-
 		err = cui.Run(config)
 		if err != nil {
 			return err
