@@ -8,8 +8,8 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 
-	"github.com/boyvinall/dirtygit/cui"
 	"github.com/boyvinall/dirtygit/scanner"
+	"github.com/boyvinall/dirtygit/ui"
 )
 
 func getDefaultConfigPath() string {
@@ -48,13 +48,7 @@ func main() {
 		for i := range config.ScanDirs.Exclude {
 			config.ScanDirs.Exclude[i] = os.ExpandEnv(config.ScanDirs.Exclude[i])
 		}
-		// b, err := yaml.Marshal(&config)
-		// if err != nil {
-		// 	return err
-		// }
-		// fmt.Println(string(b))
-		// os.Exit(1)
-		err = cui.Run(config)
+		err = ui.Run(config)
 		if err != nil {
 			return err
 		}

@@ -1,4 +1,4 @@
-package cui
+package ui
 
 import (
 	"errors"
@@ -17,15 +17,16 @@ const (
 	vRepo     = "repo"
 	vDiff     = "diff"
 	vScanning = "scanning"
+	vError    = "error"
 )
 
 type ui struct {
 	scan         chan struct{}
 	config       *scanner.Config
 	repositories scanner.MultiGitStatus
-	currentRepo  string
 
 	scanning uint32
+	err      error
 }
 
 func Run(config *scanner.Config) error {
@@ -36,7 +37,7 @@ func Run(config *scanner.Config) error {
 	defer g.Close()
 
 	g.Cursor = true
-	g.Mouse = true
+	// g.Mouse = true
 
 	u := &ui{}
 	u.config = config
@@ -79,7 +80,10 @@ func (u *ui) Layout(g *gocui.Gui) error {
 	repo.SelBgColor = gocui.ColorGreen
 	repo.SelFgColor = gocui.ColorBlack
 	if g.CurrentView() == nil {
-		g.SetCurrentView(repo.Name())
+		_, err = g.SetCurrentView(vRepo)
+		if err != nil {
+			return err
+		}
 	}
 	diff, err := g.SetView(vDiff, 0, divide+1, maxX-1, maxY-1)
 	if err != nil && err != gocui.ErrUnknownView {
@@ -88,7 +92,8 @@ func (u *ui) Layout(g *gocui.Gui) error {
 	diff.Title = "Diff"
 
 	if atomic.LoadUint32(&u.scanning) > 0 {
-		scanning, err := g.SetView(vScanning, maxX/2-10, maxY/2-1, maxX/2+10, maxY/2+1)
+		var scanning *gocui.View
+		scanning, err = g.SetView(vScanning, maxX/4-10, maxY/2-1, maxX/2+10, maxY/2+1)
 		if err != nil && err != gocui.ErrUnknownView {
 			return err
 		}
@@ -96,7 +101,27 @@ func (u *ui) Layout(g *gocui.Gui) error {
 			fmt.Fprint(scanning, "  Scanning...")
 		}
 	} else {
-		g.DeleteView(vScanning)
+		err = g.DeleteView(vScanning)
+		if err != nil && err != gocui.ErrUnknownView {
+			return err
+		}
+	}
+	if u.err != nil {
+		var errorView *gocui.View
+		errorView, err = g.SetView(vError, maxX/8, maxY/2-2, 7*maxX/8, maxY/2+2)
+		errorView.Title = "Error"
+		errorView.Wrap = true
+		if err != nil && err != gocui.ErrUnknownView {
+			return err
+		}
+		if err == gocui.ErrUnknownView {
+			fmt.Fprint(errorView, u.err)
+		}
+	} else {
+		err = g.DeleteView(vError)
+		if err != nil && err != gocui.ErrUnknownView {
+			return err
+		}
 	}
 
 	return nil
@@ -129,14 +154,16 @@ func (u *ui) initKeybindings(g *gocui.Gui) error {
 
 func (u *ui) nextView(g *gocui.Gui, v *gocui.View) error {
 	if v == nil {
-		g.SetCurrentView(vRepo)
-		return nil
+		_, err := g.SetCurrentView(vRepo)
+		return err
 	}
 	switch v.Name() {
 	case vRepo:
-		g.SetCurrentView(vDiff)
-	default:
-		g.SetCurrentView(vRepo)
+		_, err := g.SetCurrentView(vDiff)
+		return err
+	case vDiff:
+		_, err := g.SetCurrentView(vRepo)
+		return err
 	}
 	return nil
 }
@@ -239,22 +266,25 @@ func (u *ui) updateDirList(g *gocui.Gui) {
 }
 
 func (u *ui) Run(g *gocui.Gui) {
-	u.requestScan(g, nil)
+	err := u.requestScan(g, nil)
+	if err != nil {
+		return
+	}
 
 	update := func() {
 		g.Update(func(g *gocui.Gui) error {
 			return nil
 		})
 	}
+
 	for {
 		select {
 		case <-u.scan:
 			atomic.StoreUint32(&u.scanning, 1)
 			update()
 
-			var err error
-			u.repositories, err = scanner.Scan(u.config)
-			if err == nil {
+			u.repositories, u.err = scanner.Scan(u.config)
+			if u.err == nil {
 				u.updateDirList(g)
 			}
 
