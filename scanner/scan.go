@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 
@@ -24,6 +25,15 @@ type Config struct {
 	FollowSymlinks bool `yaml:"followsymlinks"`
 }
 
+func DumpConfig(config *Config) error {
+	b, err := yaml.Marshal(&config)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(b))
+	return nil
+}
+
 func ParseConfigFile(filename string) (*Config, error) {
 	b, err := ioutil.ReadFile(filepath.Clean(filename))
 	if err != nil {
@@ -39,15 +49,20 @@ func ParseConfigFile(filename string) (*Config, error) {
 	return &config, nil
 }
 
+// Scan finds all "dirty" git repositories specified by config
 func Scan(config *Config) (MultiGitStatus, error) {
-	e, err := NewExcluder(config.GitIgnore.FileGlob, config.GitIgnore.DirGlob)
-	if err != nil {
-		return nil, err
+	ex, e := NewExcluder(config.GitIgnore.FileGlob, config.GitIgnore.DirGlob)
+	if e != nil {
+		return nil, e
 	}
 
 	ctx := context.Background()
 	repositories := make(chan string, 10)
-	go Walk(ctx, config, repositories)
+
+	errCh := make(chan error)
+	go func() {
+		errCh <- Walk(ctx, config, repositories)
+	}()
 
 	results := make(MultiGitStatus)
 	for d := range repositories {
@@ -66,10 +81,10 @@ func Scan(config *Config) (MultiGitStatus, error) {
 			return nil, errors.Wrap(err, d)
 		}
 
-		st = e.FilterGitStatus(st)
+		st = ex.FilterGitStatus(st)
 		if !st.IsClean() {
 			results[d] = st
 		}
 	}
-	return results, nil
+	return results, <-errCh
 }
