@@ -3,10 +3,10 @@ package ui
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os/exec"
 	"sort"
 	"sync/atomic"
+	"time"
 
 	"github.com/jroimartin/gocui"
 
@@ -15,7 +15,7 @@ import (
 
 const (
 	vRepo     = "repo"
-	vDiff     = "diff"
+	vStatus   = "status"
 	vScanning = "scanning"
 	vError    = "error"
 )
@@ -25,14 +25,15 @@ type ui struct {
 	config       *scanner.Config
 	repositories scanner.MultiGitStatus
 
-	scanning uint32
-	err      error
+	scanning     uint32
+	scanProgress int
+	err          error
 }
 
 func Run(config *scanner.Config) error {
 	g, err := gocui.NewGui(gocui.OutputNormal)
 	if err != nil {
-		log.Panicln(err)
+		return err
 	}
 	defer g.Close()
 
@@ -65,7 +66,7 @@ func min(x, y int) int {
 
 func (u *ui) Layout(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
-	if maxY < 10 {
+	if maxY < 20 {
 		return errors.New("Need bigger screen")
 	}
 	numRepositories := len(u.repositories)
@@ -75,7 +76,7 @@ func (u *ui) Layout(g *gocui.Gui) error {
 	if err != nil && err != gocui.ErrUnknownView {
 		return err
 	}
-	repo.Title = "Repositories"
+	repo.Title = " Repositories "
 	repo.Highlight = true
 	repo.SelBgColor = gocui.ColorGreen
 	repo.SelFgColor = gocui.ColorBlack
@@ -85,41 +86,60 @@ func (u *ui) Layout(g *gocui.Gui) error {
 			return err
 		}
 	}
-	diff, err := g.SetView(vDiff, 0, divide+1, maxX-1, maxY-1)
+
+	status, err := g.SetView(vStatus, 0, divide+1, maxX-1, maxY-1)
 	if err != nil && err != gocui.ErrUnknownView {
 		return err
 	}
-	diff.Title = "Diff"
+	status.Title = " Status "
 
 	if atomic.LoadUint32(&u.scanning) > 0 {
 		var scanning *gocui.View
-		scanning, err = g.SetView(vScanning, maxX/4-10, maxY/2-1, maxX/2+10, maxY/2+1)
+		scanning, err = g.SetView(vScanning, maxX/2-10, maxY/2-1, maxX/2+10, maxY/2+1)
+		scanning.Title = " Scanning "
 		if err != nil && err != gocui.ErrUnknownView {
 			return err
 		}
 		if err == gocui.ErrUnknownView {
-			fmt.Fprint(scanning, "  Scanning...")
+			u.scanProgress = 1
+			_, err := g.SetCurrentView(vScanning)
+			return err
 		}
+		u.updateScanProgress(g, scanning)
 	} else {
 		err = g.DeleteView(vScanning)
-		if err != nil && err != gocui.ErrUnknownView {
+		if err == nil {
+			_, err := g.SetCurrentView(vRepo)
+			if err != nil {
+				return err
+			}
+		}
+		if err != gocui.ErrUnknownView {
 			return err
 		}
 	}
 	if u.err != nil {
 		var errorView *gocui.View
 		errorView, err = g.SetView(vError, maxX/8, maxY/2-2, 7*maxX/8, maxY/2+2)
-		errorView.Title = "Error"
+		errorView.Title = " Error "
 		errorView.Wrap = true
 		if err != nil && err != gocui.ErrUnknownView {
 			return err
 		}
 		if err == gocui.ErrUnknownView {
 			fmt.Fprint(errorView, u.err)
+			_, err := g.SetCurrentView(vError)
+			return err
 		}
 	} else {
 		err = g.DeleteView(vError)
-		if err != nil && err != gocui.ErrUnknownView {
+		if err == nil {
+			_, err := g.SetCurrentView(vRepo)
+			if err != nil {
+				return err
+			}
+		}
+		if err != gocui.ErrUnknownView {
 			return err
 		}
 	}
@@ -127,27 +147,34 @@ func (u *ui) Layout(g *gocui.Gui) error {
 	return nil
 }
 
+func (u *ui) updateScanProgress(g *gocui.Gui, v *gocui.View) {
+	x, y := v.Cursor()
+	err := v.SetCursor(x+u.scanProgress, y)
+	if err != nil {
+		u.scanProgress = -u.scanProgress
+	}
+}
+
 func (u *ui) initKeybindings(g *gocui.Gui) error {
-	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, u.quit); err != nil {
-		return err
+	type keybinding struct {
+		viewname string
+		key      interface{}
+		mod      gocui.Modifier
+		handler  func(*gocui.Gui, *gocui.View) error
 	}
-	if err := g.SetKeybinding("", 'q', gocui.ModNone, u.quit); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding("", gocui.KeyTab, gocui.ModNone, u.nextView); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding("", gocui.KeyArrowUp, gocui.ModNone, u.up); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding("", gocui.KeyArrowDown, gocui.ModNone, u.down); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding("", 's', gocui.ModNone, u.requestScan); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding("", 'e', gocui.ModNone, u.edit); err != nil {
-		return err
+	for _, k := range []keybinding{
+		{"", gocui.KeyCtrlC, gocui.ModNone, u.quit},
+		{"", 'q', gocui.ModNone, u.quit},
+		{vStatus, gocui.KeyTab, gocui.ModNone, u.nextView},
+		{vRepo, gocui.KeyTab, gocui.ModNone, u.nextView},
+		{"", gocui.KeyArrowUp, gocui.ModNone, u.up},
+		{"", gocui.KeyArrowDown, gocui.ModNone, u.down},
+		{"", 's', gocui.ModNone, u.requestScan},
+		{"", 'e', gocui.ModNone, u.edit},
+	} {
+		if err := g.SetKeybinding(k.viewname, k.key, k.mod, k.handler); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -159,13 +186,12 @@ func (u *ui) nextView(g *gocui.Gui, v *gocui.View) error {
 	}
 	switch v.Name() {
 	case vRepo:
-		_, err := g.SetCurrentView(vDiff)
+		_, err := g.SetCurrentView(vStatus)
 		return err
-	case vDiff:
+	default:
 		_, err := g.SetCurrentView(vRepo)
 		return err
 	}
-	return nil
 }
 
 func (u *ui) quit(g *gocui.Gui, v *gocui.View) error {
@@ -234,9 +260,9 @@ func (u *ui) updateDiff(g *gocui.Gui) {
 
 		}
 	}
-	diff, _ := g.View(vDiff)
-	diff.Clear()
-	fmt.Fprint(diff, s)
+	status, _ := g.View(vStatus)
+	status.Clear()
+	fmt.Fprint(status, s)
 }
 
 func (u *ui) requestScan(g *gocui.Gui, v *gocui.View) error {
@@ -283,9 +309,24 @@ func (u *ui) Run(g *gocui.Gui) {
 			atomic.StoreUint32(&u.scanning, 1)
 			update()
 
-			u.repositories, u.err = scanner.Scan(u.config)
-			if u.err == nil {
-				u.updateDirList(g)
+			t := time.NewTicker(100 * time.Millisecond)
+			scanDone := make(chan struct{})
+			go func() {
+				u.repositories, u.err = scanner.Scan(u.config)
+				if u.err == nil {
+					u.updateDirList(g)
+				}
+				scanDone <- struct{}{}
+			}()
+		updateLoop:
+			for {
+				select {
+				case <-t.C:
+					update()
+				case <-scanDone:
+					t.Stop()
+					break updateLoop
+				}
 			}
 
 			atomic.StoreUint32(&u.scanning, 0)
