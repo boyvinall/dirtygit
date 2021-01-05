@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
@@ -83,12 +82,9 @@ func GoGitStatus(d string) (git.Status, error) {
 // GitStatus invokes git executable to determine the git status for a directory
 func GitStatus(d string) (git.Status, error) {
 	st := make(git.Status)
-	err := os.Chdir(d)
-	if err != nil {
-		return nil, errors.Wrap(err, d)
-	}
 
 	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = d
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, errors.Wrap(err, d)
