@@ -1,17 +1,28 @@
 package scanner
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
 
-type MultiGitStatus map[string]git.Status
+type RepoStatus struct {
+	git.Status
+
+	ScanTime time.Duration
+}
+
+type MultiGitStatus map[string]RepoStatus
 
 type Config struct {
 	ScanDirs struct {
@@ -49,6 +60,66 @@ func ParseConfigFile(filename string) (*Config, error) {
 	return &config, nil
 }
 
+// GoGitStatus uses go-git package to determine the git status for a directory
+func GoGitStatus(d string) (git.Status, error) {
+	r, err := git.PlainOpen(d)
+	if err != nil {
+		return nil, errors.Wrap(err, d)
+	}
+
+	wt, err := r.Worktree()
+	if err != nil {
+		return nil, errors.Wrap(err, d)
+	}
+
+	st, err := wt.Status()
+	if err != nil {
+		return nil, errors.Wrap(err, d)
+	}
+
+	return st, nil
+}
+
+// GitStatus invokes git executable to determine the git status for a directory
+func GitStatus(d string) (git.Status, error) {
+	st := make(git.Status)
+	err := os.Chdir(d)
+	if err != nil {
+		return nil, errors.Wrap(err, d)
+	}
+
+	cmd := exec.Command("git", "status", "--porcelain")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, errors.Wrap(err, d)
+	}
+
+	errCh := make(chan error)
+	go func() {
+		errCh <- cmd.Start()
+	}()
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		var fst git.FileStatus
+		var f string
+
+		s := scanner.Text()
+		if len(s) < 4 {
+			return nil, errors.Errorf("unable to parse status: '%s' for %s", s, d)
+		}
+		fst.Staging = git.StatusCode(s[0])
+		fst.Worktree = git.StatusCode(s[1])
+		f = s[3:]
+		st[f] = &fst
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, errors.Wrap(err, d)
+	}
+
+	return st, <-errCh
+}
+
 // Scan finds all "dirty" git repositories specified by config
 func Scan(config *Config) (MultiGitStatus, error) {
 	ex, e := NewExcluder(config.GitIgnore.FileGlob, config.GitIgnore.DirGlob)
@@ -57,34 +128,47 @@ func Scan(config *Config) (MultiGitStatus, error) {
 	}
 
 	ctx := context.Background()
-	repositories := make(chan string, 10)
+	repositories := make(chan string, 1000)
 
-	errCh := make(chan error)
+	type walkResult struct {
+		err      error
+		duration time.Duration
+	}
+	ch := make(chan walkResult)
 	go func() {
-		errCh <- Walk(ctx, config, repositories)
+		start := time.Now()
+		err := Walk(ctx, config, repositories)
+		ch <- walkResult{
+			err:      err,
+			duration: time.Since(start),
+		}
 	}()
 
 	results := make(MultiGitStatus)
+	totalStatusDuration := time.Duration(0)
 	for d := range repositories {
-		r, err := git.PlainOpen(d)
-		if err != nil {
-			return nil, errors.Wrap(err, d)
-		}
+		start := time.Now()
 
-		wt, err := r.Worktree()
+		st, err := GitStatus(d)
 		if err != nil {
-			return nil, errors.Wrap(err, d)
+			return nil, err
 		}
-
-		st, err := wt.Status()
-		if err != nil {
-			return nil, errors.Wrap(err, d)
-		}
-
 		st = ex.FilterGitStatus(st)
+
+		duration := time.Since(start)
+		log.Println(d, duration)
+
 		if !st.IsClean() {
-			results[d] = st
+			totalStatusDuration += duration
+			results[d] = RepoStatus{
+				Status:   st,
+				ScanTime: duration,
+			}
 		}
 	}
-	return results, <-errCh
+
+	w := <-ch
+	log.Println("walkDuration:", w.duration)
+	log.Println("statusDuration:", totalStatusDuration)
+	return results, w.err
 }
