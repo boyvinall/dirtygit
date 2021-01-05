@@ -27,9 +27,16 @@ func walkone(ctx context.Context, dir string, config *Config, results chan strin
 		FollowSymbolicLinks: config.FollowSymlinks,
 		ErrorCallback: func(path string, err error) godirwalk.ErrorAction {
 			patherr, ok := err.(*os.PathError)
-			if ok && patherr.Unwrap().Error() == "no such file or directory" {
-				// skip invalid symlinks
-				return godirwalk.SkipNode
+			if ok {
+				switch patherr.Unwrap().Error() {
+				case "no such file or directory":
+					// might be symlink pointing to non-existent file
+					return godirwalk.SkipNode
+
+				case "too many levels of symbolic links":
+					// skip invalid symlinks
+					return godirwalk.SkipNode
+				}
 			}
 			log.Printf("ERROR: %s: %v", path, err)
 			return godirwalk.Halt
