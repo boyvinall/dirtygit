@@ -27,6 +27,8 @@ dirtygit [ <directories...> ]
 If one/more directories are specified as `<directories>`, then this will override the
 `scandirs.include` from your config file.
 
+![demo](demo.gif)
+
 ## UI
 
 Simple key navigation in the UI as follows:
