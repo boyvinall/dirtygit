@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os/exec"
 	"sort"
 	"sync/atomic"
@@ -18,6 +19,7 @@ const (
 	vStatus   = "status"
 	vScanning = "scanning"
 	vError    = "error"
+	vLog      = "log"
 )
 
 type ui struct {
@@ -73,13 +75,14 @@ func (u *ui) Layout(g *gocui.Gui) error {
 	divide := min(numRepositories+2, maxY/2)
 
 	repo, err := g.SetView(vRepo, 0, 0, maxX-1, divide)
-	if err != nil && err != gocui.ErrUnknownView {
+	if err == gocui.ErrUnknownView {
+		repo.Title = " Repositories "
+		repo.Highlight = true
+		repo.SelBgColor = gocui.ColorGreen
+		repo.SelFgColor = gocui.ColorBlack
+	} else if err != nil {
 		return err
 	}
-	repo.Title = " Repositories "
-	repo.Highlight = true
-	repo.SelBgColor = gocui.ColorGreen
-	repo.SelFgColor = gocui.ColorBlack
 	if g.CurrentView() == nil {
 		_, err = g.SetCurrentView(vRepo)
 		if err != nil {
@@ -87,11 +90,25 @@ func (u *ui) Layout(g *gocui.Gui) error {
 		}
 	}
 
-	status, err := g.SetView(vStatus, 0, divide+1, maxX-1, maxY-1)
+	status, err := g.SetView(vStatus, 0, divide+1, maxX-1, maxY-11)
 	if err != nil && err != gocui.ErrUnknownView {
 		return err
 	}
 	status.Title = " Status "
+
+	logwindow, err := g.SetView(vLog, 0, maxY-10, maxX, maxY-1)
+	if err == gocui.ErrUnknownView {
+		logwindow.Title = " Log "
+		logwindow.Autoscroll = true
+		logwindow.Wrap = true
+		log.SetOutput(logwindow)
+	} else if err != nil {
+		// if err != nil && err != gocui.ErrUnknownView {
+		return err
+	} else {
+		// _, y := logwindow.Size()
+		// logwindow.SetCursor(0, y-1)
+	}
 
 	if atomic.LoadUint32(&u.scanning) > 0 {
 		var scanning *gocui.View
@@ -167,6 +184,7 @@ func (u *ui) initKeybindings(g *gocui.Gui) error {
 		{"", 'q', gocui.ModNone, u.quit},
 		{vStatus, gocui.KeyTab, gocui.ModNone, u.nextView},
 		{vRepo, gocui.KeyTab, gocui.ModNone, u.nextView},
+		{vLog, gocui.KeyTab, gocui.ModNone, u.nextView},
 		{"", gocui.KeyArrowUp, gocui.ModNone, u.up},
 		{"", gocui.KeyArrowDown, gocui.ModNone, u.down},
 		{"", 's', gocui.ModNone, u.requestScan},
@@ -187,6 +205,9 @@ func (u *ui) nextView(g *gocui.Gui, v *gocui.View) error {
 	switch v.Name() {
 	case vRepo:
 		_, err := g.SetCurrentView(vStatus)
+		return err
+	case vStatus:
+		_, err := g.SetCurrentView(vLog)
 		return err
 	default:
 		_, err := g.SetCurrentView(vRepo)
@@ -244,16 +265,16 @@ func (u *ui) updateDiff(g *gocui.Gui) {
 	st, ok := u.repositories[currentRepo]
 	s := ""
 	if ok {
-		if len(st) > 0 {
+		if len(st.Status) > 0 {
 			s += fmt.Sprintln(" SW")
 			s += fmt.Sprintln("-----")
-			paths := make([]string, 0, len(st))
-			for path := range st {
+			paths := make([]string, 0, len(st.Status))
+			for path := range st.Status {
 				paths = append(paths, path)
 			}
 			sort.Strings(paths)
 			for _, path := range paths {
-				status := st[path]
+				status := st.Status[path]
 				s += fmt.Sprintf(" %c%c  %s\n", status.Staging, status.Worktree, path)
 			}
 		} else {

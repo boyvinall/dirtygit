@@ -33,6 +33,10 @@ func main() {
 			Usage:   "Location of config file",
 			Value:   getDefaultConfigPath(),
 		},
+		&cli.BoolFlag{
+			Name:  "debug",
+			Usage: "show debug output instead of UI",
+		},
 	}
 	app.Action = func(c *cli.Context) error {
 		config, err := scanner.ParseConfigFile(c.String("config"))
@@ -48,6 +52,19 @@ func main() {
 		for i := range config.ScanDirs.Exclude {
 			config.ScanDirs.Exclude[i] = os.ExpandEnv(config.ScanDirs.Exclude[i])
 		}
+
+		if c.Bool("debug") {
+			repo, err := scanner.Scan(config)
+			if err != nil {
+				panic(err)
+			}
+
+			for r, st := range repo {
+				fmt.Printf("%-40s %v\n", r, st.ScanTime)
+			}
+			return nil
+		}
+
 		err = ui.Run(config)
 		if err != nil {
 			return err
