@@ -2,6 +2,8 @@ package scanner
 
 import (
 	"context"
+	"log"
+	"os"
 	"path/filepath"
 
 	"github.com/karrick/godirwalk"
@@ -24,7 +26,13 @@ func walkone(ctx context.Context, dir string, config *Config, results chan strin
 		ScratchBuffer:       make([]byte, godirwalk.MinimumScratchBufferSize),
 		FollowSymbolicLinks: config.FollowSymlinks,
 		ErrorCallback: func(path string, err error) godirwalk.ErrorAction {
-			return godirwalk.SkipNode
+			patherr, ok := err.(*os.PathError)
+			if ok && patherr.Unwrap().Error() == "no such file or directory" {
+				// skip invalid symlinks
+				return godirwalk.SkipNode
+			}
+			log.Printf("ERROR: %s: %v", path, err)
+			return godirwalk.Halt
 		},
 		Callback: func(path string, ent *godirwalk.Dirent) error {
 
