@@ -69,8 +69,9 @@ func Walk(ctx context.Context, config *Config, results chan string) error {
 
 	var errors errgroup.Group
 	for i := range config.ScanDirs.Include {
+		j := i // copy loop variable
 		errors.Go(func() error {
-			err := walkone(ctx, config.ScanDirs.Include[i], config, results)
+			err := walkone(ctx, config.ScanDirs.Include[j], config, results)
 			if err == filepath.SkipDir {
 				cancel()
 			} else if err != nil {
