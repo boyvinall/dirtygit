@@ -119,14 +119,14 @@ func (u *ui) Layout(g *gocui.Gui) error {
 		}
 		if err == gocui.ErrUnknownView {
 			u.scanProgress = 1
-			_, err := g.SetCurrentView(vScanning)
+			_, err = g.SetCurrentView(vScanning)
 			return err
 		}
 		u.updateScanProgress(g, scanning)
 	} else {
 		err = g.DeleteView(vScanning)
 		if err == nil {
-			_, err := g.SetCurrentView(vRepo)
+			_, err = g.SetCurrentView(vRepo)
 			if err != nil {
 				return err
 			}
@@ -145,13 +145,13 @@ func (u *ui) Layout(g *gocui.Gui) error {
 		}
 		if err == gocui.ErrUnknownView {
 			fmt.Fprint(errorView, u.err)
-			_, err := g.SetCurrentView(vError)
+			_, err = g.SetCurrentView(vError)
 			return err
 		}
 	} else {
 		err = g.DeleteView(vError)
 		if err == nil {
-			_, err := g.SetCurrentView(vRepo)
+			_, err = g.SetCurrentView(vRepo)
 			if err != nil {
 				return err
 			}
@@ -324,38 +324,35 @@ func (u *ui) Run(g *gocui.Gui) {
 		})
 	}
 
-	for {
-		select {
-		case <-u.scan:
-			atomic.StoreUint32(&u.scanning, 1)
-			update()
+	for range u.scan {
+		atomic.StoreUint32(&u.scanning, 1)
+		update()
 
-			t := time.NewTicker(100 * time.Millisecond)
-			scanDone := make(chan struct{})
-			go func() {
-				u.repositories, u.err = scanner.Scan(u.config)
-				if u.err == nil {
-					u.updateDirList(g)
-				}
-				scanDone <- struct{}{}
-			}()
-		updateLoop:
-			for {
-				select {
-				case <-t.C:
-					update()
-				case <-scanDone:
-					t.Stop()
-					break updateLoop
-				}
+		t := time.NewTicker(100 * time.Millisecond)
+		scanDone := make(chan struct{})
+		go func() {
+			u.repositories, u.err = scanner.Scan(u.config)
+			if u.err == nil {
+				u.updateDirList(g)
 			}
-
-			atomic.StoreUint32(&u.scanning, 0)
-			u.flushScan()
+			scanDone <- struct{}{}
 			update()
+		}()
+	updateLoop:
+		for {
+			select {
+			case <-t.C:
+				update()
+			case <-scanDone:
+				t.Stop()
+				break updateLoop
+			}
 		}
-	}
 
+		atomic.StoreUint32(&u.scanning, 0)
+		u.flushScan()
+		update()
+	}
 }
 
 func (u *ui) flushScan() {

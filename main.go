@@ -54,12 +54,13 @@ func main() {
 		}
 
 		if c.Bool("debug") {
-			repo, err := scanner.Scan(config)
+			var mgs scanner.MultiGitStatus
+			mgs, err = scanner.Scan(config)
 			if err != nil {
 				panic(err)
 			}
 
-			for r, st := range repo {
+			for r, st := range mgs {
 				fmt.Printf("%-40s %v\n", r, st.ScanTime)
 			}
 			return nil
