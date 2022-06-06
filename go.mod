@@ -3,18 +3,23 @@ module github.com/boyvinall/dirtygit
 go 1.15
 
 require (
-	github.com/go-git/go-git/v5 v5.2.0
-	github.com/jroimartin/gocui v0.4.0
-	github.com/karrick/godirwalk v1.16.1
-	github.com/mattn/go-runewidth v0.0.2 // indirect
+	github.com/Microsoft/go-winio v0.5.2 // indirect
+	github.com/ProtonMail/go-crypto v0.0.0-20220517143526-88bb52951d5b // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
+	github.com/emirpasic/gods v1.18.1 // indirect
+	github.com/go-git/go-git/v5 v5.4.2
+	github.com/imdario/mergo v0.3.13 // indirect
+	github.com/jroimartin/gocui v0.5.0
+	github.com/karrick/godirwalk v1.17.0
+	github.com/kevinburke/ssh_config v1.2.0 // indirect
+	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/nsf/termbox-go v0.0.0-20190121233118-02980233997d // indirect
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.5.1 // indirect
-	github.com/urfave/cli/v2 v2.3.0
-	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad // indirect
-	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e // indirect
-	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
-	golang.org/x/sys v0.0.0-20200720211630-cb9d2d5c5666 // indirect
-	gopkg.in/yaml.v2 v2.2.8
+	github.com/sergi/go-diff v1.2.0 // indirect
+	github.com/urfave/cli/v2 v2.8.1
+	github.com/xanzy/ssh-agent v0.3.1 // indirect
+	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
+	golang.org/x/net v0.0.0-20220531201128-c960675eff93 // indirect
+	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
+	gopkg.in/yaml.v2 v2.4.0
 )
