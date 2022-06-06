@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
@@ -44,9 +45,13 @@ func DumpConfig(config *Config) error {
 	return nil
 }
 
-func ParseConfigFile(filename string) (*Config, error) {
+func ParseConfigFile(filename, defaultConfig string) (*Config, error) {
 	b, err := ioutil.ReadFile(filepath.Clean(filename))
-	if err != nil {
+	switch {
+	case err == nil:
+	case os.IsNotExist(err):
+		b = ([]byte)(defaultConfig)
+	default:
 		return nil, err
 	}
 

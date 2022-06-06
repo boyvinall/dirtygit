@@ -1,6 +1,6 @@
 module github.com/boyvinall/dirtygit
 
-go 1.15
+go 1.16
 
 require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
