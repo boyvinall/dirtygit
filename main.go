@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,9 @@ func getDefaultConfigPath() string {
 	_ = err // ignore
 	return filepath.Join(home, ".dirtygit.yml")
 }
+
+//go:embed .dirtygit.yml
+var defaultConfig string
 
 func main() {
 	app := cli.NewApp()
@@ -39,7 +43,7 @@ func main() {
 		},
 	}
 	app.Action = func(c *cli.Context) error {
-		config, err := scanner.ParseConfigFile(c.String("config"))
+		config, err := scanner.ParseConfigFile(c.String("config"), defaultConfig)
 		if err != nil {
 			return err
 		}

@@ -11,7 +11,7 @@ been pushed to a remote.
 ## Source-mode installation
 
 ```bash
-go get github.com/boyvinall/dirtygit
+go install github.com/boyvinall/dirtygit@master
 ```
 
 ## Configuration
