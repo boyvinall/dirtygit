@@ -96,7 +96,7 @@ func (u *ui) Layout(g *gocui.Gui) error {
 	}
 	status.Title = " Status "
 
-	logwindow, err := g.SetView(vLog, 0, maxY-10, maxX, maxY-1)
+	logwindow, err := g.SetView(vLog, 0, maxY-10, maxX-1, maxY-1)
 	if err == gocui.ErrUnknownView {
 		logwindow.Title = " Log "
 		logwindow.Autoscroll = true
