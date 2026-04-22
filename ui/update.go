@@ -5,6 +5,7 @@ import (
 	"log"
 	"os/exec"
 	"strings"
+	"time"
 
 	cspinner "github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -12,6 +13,18 @@ import (
 
 	"github.com/boyvinall/dirtygit/scanner"
 )
+
+// repoNavSettleDebounce is the quiet period after the last Up/Down on the repo
+// list before status/branches/diff are refreshed. Keeps list scrolling smooth.
+const repoNavSettleDebounce = 100 * time.Millisecond
+
+// repoNavSettledMsg is sent after the debounce; see repoNavSettleDebounce.
+type repoNavSettledMsg struct{ gen uint64 }
+
+// runDiffForGen is sent after a repo selection change so the diff loads on a
+// follow-up message. That lets the first frame re-render the repo list without
+// blocking on git.
+type runDiffForGen struct{ gen uint64 }
 
 // handleWindowSize updates dimensions and recomputes pane layout.
 func (m *model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
@@ -284,8 +297,13 @@ func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 			}
 			if m.cursor != prev {
 				m.statusFileSelected = false
-				m.refreshStatusContent()
 				m.diffNeedsRefresh = true
+				m.syncRepoListScrollOnly()
+				m.repoNavSettleGen++
+				g := m.repoNavSettleGen
+				return m, tea.Tick(repoNavSettleDebounce, func(t time.Time) tea.Msg {
+					return repoNavSettledMsg{gen: g}
+				}), true
 			}
 			return m, nil, true
 		}
@@ -331,6 +349,41 @@ func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 		return m, nil, true
 	}
 	return m, nil, false
+}
+
+func (m *model) scheduleRunDiff() tea.Cmd {
+	m.diffRequestGen++
+	g := m.diffRequestGen
+	return tea.Tick(0, func(t time.Time) tea.Msg {
+		return runDiffForGen{gen: g}
+	})
+}
+
+// handleRepoNavSettled applies status/branches/diff after keyboard repo list
+// navigation has been quiet for repoNavSettleDebounce. Stale generations are
+// dropped when the user is still moving.
+func (m *model) handleRepoNavSettled(msg repoNavSettledMsg) (tea.Model, tea.Cmd) {
+	if msg.gen != m.repoNavSettleGen {
+		return m, nil
+	}
+	m.applyViewportAndPanes(false)
+	return m, m.scheduleRunDiff()
+}
+
+// handleRunDiffForGen runs git diff after the list/panes have been laid out. If
+// a newer request superseded this one, reschedules a tick for the latest gen.
+func (m *model) handleRunDiffForGen(msg runDiffForGen) (tea.Model, tea.Cmd) {
+	if msg.gen != m.diffRequestGen {
+		g := m.diffRequestGen
+		return m, tea.Tick(0, func(t time.Time) tea.Msg {
+			return runDiffForGen{gen: g}
+		})
+	}
+	if !m.diffNeedsRefresh {
+		return m, nil
+	}
+	m.syncViewports()
+	return m, nil
 }
 
 // handleKey routes keyboard input through overlay, command, and navigation handlers.
@@ -411,6 +464,11 @@ func (m *model) handlePassiveInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 // Update handles Bubble Tea messages and advances application state.
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case repoNavSettledMsg:
+		return m.handleRepoNavSettled(msg)
+	case runDiffForGen:
+		return m.handleRunDiffForGen(msg)
+
 	case tea.WindowSizeMsg:
 		return m.handleWindowSize(msg)
 
@@ -430,8 +488,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.handleMouseFocusClick(msg) {
 			return m, nil
 		}
-		if m.handleMousePaneLineSelect(msg) {
-			return m, nil
+		if ok, cmd := m.handleMousePaneLineSelect(msg); ok {
+			return m, cmd
 		}
 		return m.handlePassiveInput(msg)
 	}

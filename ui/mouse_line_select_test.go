@@ -32,7 +32,8 @@ func TestMouseRepoLineSelect(t *testing.T) {
 		Button: tea.MouseButtonLeft,
 		Action: tea.MouseActionPress,
 	}
-	if !m.handleMousePaneLineSelect(msg) {
+	ok, _ := m.handleMousePaneLineSelect(msg)
+	if !ok {
 		t.Fatal("expected click on second repo line to be handled")
 	}
 	if m.cursor != 1 {
@@ -67,7 +68,7 @@ func TestMouseStatusLineSelect(t *testing.T) {
 		Button: tea.MouseButtonLeft,
 		Action: tea.MouseActionPress,
 	}
-	if !m.handleMousePaneLineSelect(msg) {
+	if ok, _ := m.handleMousePaneLineSelect(msg); !ok {
 		t.Fatal("expected click on first status data row to be handled")
 	}
 	if m.statusTable.Cursor() != 0 || !m.statusFileSelected {
@@ -76,7 +77,7 @@ func TestMouseStatusLineSelect(t *testing.T) {
 
 	y2 := y + 1
 	msg2 := tea.MouseMsg{X: 2, Y: y2, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress}
-	if !m.handleMousePaneLineSelect(msg2) {
+	if ok, _ := m.handleMousePaneLineSelect(msg2); !ok {
 		t.Fatal("expected second row click handled")
 	}
 	if m.statusTable.Cursor() != 1 {
@@ -104,7 +105,7 @@ func TestMouseStatusHeaderClickConsumed(t *testing.T) {
 	y := statusTop + 1 // first inner line = table header
 	prev := m.statusTable.Cursor()
 	msg := tea.MouseMsg{X: 2, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress}
-	if !m.handleMousePaneLineSelect(msg) {
+	if ok, _ := m.handleMousePaneLineSelect(msg); !ok {
 		t.Fatal("header click should be consumed")
 	}
 	if m.statusTable.Cursor() != prev {

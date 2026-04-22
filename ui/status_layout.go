@@ -179,8 +179,18 @@ func (m *model) statusBranchesInnerWidths() (statusInnerW, branchInnerW int) {
 	return statusInnerW, branchInnerW
 }
 
-// syncViewports applies layout dimensions and refreshes pane content.
+// syncViewports applies layout dimensions and refreshes all pane content,
+// including running git when diffNeedsRefresh (expensive).
 func (m *model) syncViewports() {
+	m.applyViewportAndPanes(true)
+}
+
+// applyViewportAndPanes resizes panes and refreshes status, branches, log, and
+// repo scroll. If syncDiff is true, it runs refreshDiffContent (git diff).
+// If false, it defers the diff: when diffNeedsRefresh, the diff pane shows
+// a loading line until a follow-up runDiffForGen is handled. Used when
+// the repository selection changes so scrolling stays responsive.
+func (m *model) applyViewportAndPanes(syncDiff bool) {
 	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
 	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
 		return
@@ -201,7 +211,11 @@ func (m *model) syncViewports() {
 	m.diffVP.Height = diffBody
 	m.refreshStatusContent()
 	m.refreshBranchContent(branchInnerW)
-	m.refreshDiffContent()
+	if syncDiff {
+		m.refreshDiffContent()
+	} else if m.diffNeedsRefresh {
+		m.diffContent = "(Loading diff…)"
+	}
 	m.diffVP.SetContent(m.diffContent)
 	m.logVP.SetContent(m.logBuf.String())
 	m.clampRepoScroll(repoBody)

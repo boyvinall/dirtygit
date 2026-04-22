@@ -83,68 +83,70 @@ func (m *model) statusPaneFrame() (topY, outerH, outerW int, ok bool) {
 }
 
 // handleMousePaneLineSelect handles left-click row selection when the repo or
-// status pane is already focused. Returns true if the click was handled.
-func (m *model) handleMousePaneLineSelect(msg tea.MouseMsg) bool {
+// status pane is already focused. Returns (true, cmd) when the click is
+// handled; cmd may schedule deferred work (e.g. git diff for a new repo).
+func (m *model) handleMousePaneLineSelect(msg tea.MouseMsg) (bool, tea.Cmd) {
 	if m.helpOpen || m.scanning || m.err != nil {
-		return false
+		return false, nil
 	}
 	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {
-		return false
+		return false, nil
 	}
 
 	switch m.focus {
 	case paneRepo:
 		outerH, ok := m.repoPaneOuterHeight()
 		if !ok || msg.X < 0 || msg.X >= m.width {
-			return false
+			return false, nil
 		}
 		const repoTopY = 0
 		relY := msg.Y - repoTopY
 		bodyH := outerH - 2
 		if relY < 1 || relY > bodyH {
-			return false
+			return false, nil
 		}
 		lineIdx := relY - 1
 		global := m.repoScrollTop + lineIdx
 		if len(m.repoList) == 0 || global < 0 || global >= len(m.repoList) {
-			return false
+			return false, nil
 		}
 		if global == m.cursor {
-			return true
+			return true, nil
 		}
+		// Drop any pending keyboard debounce; mouse selection should feel immediate.
+		m.repoNavSettleGen++
 		m.cursor = global
 		m.statusFileSelected = false
-		m.refreshStatusContent()
 		m.diffNeedsRefresh = true
-		m.syncViewports()
-		return true
+		m.applyViewportAndPanes(false)
+		return true, m.scheduleRunDiff()
 
 	case paneStatus:
 		topY, outerH, outerW, ok := m.statusPaneFrame()
 		if !ok || msg.X < 0 || msg.X >= outerW {
-			return false
+			return false, nil
 		}
 		relY := msg.Y - topY
 		bodyH := outerH - 2
 		if relY < 1 || relY > bodyH {
-			return false
+			return false, nil
 		}
 		lineInBody := relY - 1
 		headerH := statusTableHeaderLines(m.statusTable)
 		r := lineInBody - headerH
 		if r < 0 {
-			return true
+			return true, nil
 		}
 		rows := m.statusTable.Rows()
 		if len(rows) == 0 {
-			return true
+			return true, nil
 		}
 		start, end := bubblesTableSlice(m.statusTable)
 		yoff := bubblesTableViewportYOffset(m.statusTable)
 		vpH := m.statusTable.Height()
 		contentLines := end - start
 		if contentLines <= 0 {
-			return true
+			return true, nil
 		}
 		vis := vpH
 		if yoff+vis > contentLines {
@@ -154,7 +156,7 @@ func (m *model) handleMousePaneLineSelect(msg tea.MouseMsg) bool {
 			vis = 0
 		}
 		if r >= vis {
-			return true
+			return true, nil
 		}
 		global := start + yoff + r
 		if global < 0 {
@@ -171,9 +173,9 @@ func (m *model) handleMousePaneLineSelect(msg tea.MouseMsg) bool {
 		m.applyStatusTableFocusAndStyles()
 		m.diffNeedsRefresh = true
 		m.syncViewports()
-		return true
+		return true, nil
 
 	default:
-		return false
+		return false, nil
 	}
 }

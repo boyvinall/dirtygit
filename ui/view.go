@@ -220,6 +220,16 @@ func (m *model) clampRepoScroll(innerH int) {
 	}
 }
 
+// syncRepoListScrollOnly updates repoScrollTop for the current cursor; it is
+// cheap and used while keyboard navigation debounces the rest of the UI.
+func (m *model) syncRepoListScrollOnly() {
+	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
+	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
+		return
+	}
+	m.clampRepoScroll(repoBody)
+}
+
 // repoListView renders the repository list with current selection styling.
 func (m *model) repoListView(innerH int) string {
 	selFocused := lipgloss.NewStyle().Background(lipgloss.Color("42")).Foreground(lipgloss.Color("0"))
@@ -342,7 +352,6 @@ func (m *model) View() string {
 	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
 		return ""
 	}
-	m.syncViewports()
 
 	stack := ""
 	if m.zoomed {

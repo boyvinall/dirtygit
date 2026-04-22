@@ -94,10 +94,16 @@ type model struct {
 	branchTable        table.Model
 	diffMode           diffMode
 	diffNeedsRefresh   bool
-	diffContent        string
-	diffErr            error
-	diffVP             viewport.Model
-	logVP              viewport.Model
+	// repoNavSettleGen increments on each repo list movement; only the matching
+	// repoNavSettledMsg applies heavy pane updates so rapid key repeat debounces.
+	repoNavSettleGen uint64
+	// diffRequestGen increments when we're ready to load a diff; only the matching
+	// runDiffForGen handler loads git so rapid scrolling does not run stale work.
+	diffRequestGen uint64
+	diffContent    string
+	diffErr        error
+	diffVP         viewport.Model
+	logVP          viewport.Model
 
 	scanning       bool
 	scanResultCh   chan scanResult
