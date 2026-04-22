@@ -42,6 +42,17 @@ func (e Excluder) FilterGitStatus(st git.Status) git.Status {
 	return newStatus
 }
 
+func (e Excluder) FilterPorcelainStatus(st PorcelainStatus) PorcelainStatus {
+	filtered := PorcelainStatus{Entries: make([]PorcelainEntry, 0, len(st.Entries))}
+	for _, entry := range st.Entries {
+		if e.IsExcluded(entry.Path) {
+			continue
+		}
+		filtered.Entries = append(filtered.Entries, entry)
+	}
+	return filtered
+}
+
 func NewExcluder(files, dirs []string) (Excluder, error) {
 	return Excluder{
 		files: files,

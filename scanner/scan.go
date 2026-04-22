@@ -3,11 +3,13 @@ package scanner
 import (
 	"bufio"
 	"context"
+	"io"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -19,10 +21,34 @@ import (
 type RepoStatus struct {
 	git.Status
 
+	Porcelain PorcelainStatus
 	ScanTime time.Duration
 }
 
 type MultiGitStatus map[string]RepoStatus
+
+type PorcelainEntry struct {
+	Staging      git.StatusCode
+	Worktree     git.StatusCode
+	Path         string
+	OriginalPath string
+}
+
+type PorcelainStatus struct {
+	Entries []PorcelainEntry
+}
+
+func (p PorcelainStatus) ToGitStatus() git.Status {
+	st := make(git.Status, len(p.Entries))
+	for _, entry := range p.Entries {
+		fst := &git.FileStatus{
+			Staging:  entry.Staging,
+			Worktree: entry.Worktree,
+		}
+		st[entry.Path] = fst
+	}
+	return st
+}
 
 // ScanProgress reports coarse scan activity for UIs (discovery vs git status).
 // ReposFound may increase while ReposChecked catches up; both match the final total when complete.
@@ -92,41 +118,71 @@ func GoGitStatus(d string) (git.Status, error) {
 	return st, nil
 }
 
-// GitStatus invokes git executable to determine the git status for a directory
-func GitStatus(d string) (git.Status, error) {
-	st := make(git.Status)
+func ParsePorcelainStatus(r io.Reader) (PorcelainStatus, error) {
+	st := PorcelainStatus{}
+	lineScanner := bufio.NewScanner(r)
+	for lineScanner.Scan() {
+		entry, err := parsePorcelainLine(lineScanner.Text())
+		if err != nil {
+			return PorcelainStatus{}, err
+		}
+		st.Entries = append(st.Entries, entry)
+	}
+	if err := lineScanner.Err(); err != nil {
+		return PorcelainStatus{}, err
+	}
+	return st, nil
+}
+
+func parsePorcelainLine(s string) (PorcelainEntry, error) {
+	if len(s) < 4 || s[2] != ' ' {
+		return PorcelainEntry{}, errors.Errorf("unable to parse status line: %q", s)
+	}
+
+	entry := PorcelainEntry{
+		Staging:  git.StatusCode(s[0]),
+		Worktree: git.StatusCode(s[1]),
+	}
+
+	payload := s[3:]
+	if oldPath, newPath, ok := strings.Cut(payload, " -> "); ok {
+		entry.OriginalPath = oldPath
+		entry.Path = newPath
+	} else {
+		entry.Path = payload
+	}
+
+	if entry.Path == "" {
+		return PorcelainEntry{}, errors.Errorf("unable to parse file path from status line: %q", s)
+	}
+
+	return entry, nil
+}
+
+// GitStatus invokes git executable to determine the git status for a directory.
+func GitStatus(d string) (PorcelainStatus, error) {
 
 	cmd := exec.Command("git", "status", "--porcelain")
 	cmd.Dir = d
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, errors.Wrap(err, d)
+		return PorcelainStatus{}, errors.Wrap(err, d)
 	}
 
-	errCh := make(chan error)
-	go func() {
-		errCh <- cmd.Start()
-	}()
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		var fst git.FileStatus
-		var f string
-
-		s := scanner.Text()
-		if len(s) < 4 {
-			return nil, errors.Errorf("unable to parse status: '%s' for %s", s, d)
-		}
-		fst.Staging = git.StatusCode(s[0])
-		fst.Worktree = git.StatusCode(s[1])
-		f = s[3:]
-		st[f] = &fst
+	if err := cmd.Start(); err != nil {
+		return PorcelainStatus{}, errors.Wrap(err, d)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return nil, errors.Wrap(err, d)
+	st, err := ParsePorcelainStatus(stdout)
+	if err != nil {
+		return PorcelainStatus{}, errors.Wrap(err, d)
 	}
 
-	return st, <-errCh
+	if err := cmd.Wait(); err != nil {
+		return PorcelainStatus{}, errors.Wrap(err, d)
+	}
+
+	return st, nil
 }
 
 func reportProgress(onProgress func(ScanProgress), p ScanProgress) {
@@ -184,11 +240,12 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (MultiGitSt
 
 		start := time.Now()
 
-		st, err := GitStatus(d)
+		porcelain, err := GitStatus(d)
 		if err != nil {
 			return nil, err
 		}
-		st = ex.FilterGitStatus(st)
+		porcelain = ex.FilterPorcelainStatus(porcelain)
+		st := porcelain.ToGitStatus()
 
 		duration := time.Since(start)
 		log.Println(d, duration)
@@ -202,8 +259,9 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (MultiGitSt
 		if !st.IsClean() {
 			totalStatusDuration += duration
 			results[d] = RepoStatus{
-				Status:   st,
-				ScanTime: duration,
+				Status:    st,
+				Porcelain: porcelain,
+				ScanTime:  duration,
 			}
 		}
 	}
