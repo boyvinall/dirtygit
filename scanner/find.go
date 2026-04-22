@@ -19,8 +19,9 @@ func skip(needle string, haystack []string) bool {
 	return false
 }
 
-// walkone descends a single directory tree looking for git repos
-func walkone(ctx context.Context, dir string, config *Config, results chan string) error {
+// walkone descends a single directory tree looking for git repos.
+// onRepoFound is called for each discovered repo (may be concurrent across roots); nil is safe.
+func walkone(ctx context.Context, dir string, config *Config, results chan string, onRepoFound func(string)) error {
 	err := godirwalk.Walk(dir, &godirwalk.Options{
 		Unsorted:            true,
 		ScratchBuffer:       make([]byte, godirwalk.MinimumScratchBufferSize),
@@ -70,15 +71,20 @@ func walkone(ctx context.Context, dir string, config *Config, results chan strin
 				return nil
 			}
 
-			results <- filepath.Dir(path)
+			repo := filepath.Dir(path)
+			if onRepoFound != nil {
+				onRepoFound(repo)
+			}
+			results <- repo
 			return godirwalk.SkipThis // don't descend further
 		},
 	})
 	return err
 }
 
-// Walk finds all git repositories in the directories specified in config
-func Walk(ctx context.Context, config *Config, results chan string) error {
+// Walk finds all git repositories in the directories specified in config.
+// onRepoFound is invoked once per discovered repository (from walker goroutines); nil is safe.
+func Walk(ctx context.Context, config *Config, results chan string, onRepoFound func(string)) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -86,7 +92,7 @@ func Walk(ctx context.Context, config *Config, results chan string) error {
 	for i := range config.ScanDirs.Include {
 		j := i // copy loop variable
 		errors.Go(func() error {
-			err := walkone(ctx, config.ScanDirs.Include[j], config, results)
+			err := walkone(ctx, config.ScanDirs.Include[j], config, results, onRepoFound)
 			if err == filepath.SkipDir {
 				cancel()
 			} else if err != nil {

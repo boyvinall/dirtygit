@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -23,6 +24,14 @@ type RepoStatus struct {
 }
 
 type MultiGitStatus map[string]RepoStatus
+
+// ScanProgress reports coarse scan activity for UIs (discovery vs git status).
+// ReposFound may increase while ReposChecked catches up; both match the final total when complete.
+type ScanProgress struct {
+	ReposFound   int
+	ReposChecked int
+	CurrentPath  string
+}
 
 type Config struct {
 	ScanDirs struct {
@@ -121,8 +130,20 @@ func GitStatus(d string) (git.Status, error) {
 	return st, <-errCh
 }
 
-// Scan finds all "dirty" git repositories specified by config
+func reportProgress(onProgress func(ScanProgress), p ScanProgress) {
+	if onProgress != nil {
+		onProgress(p)
+	}
+}
+
+// Scan finds all "dirty" git repositories specified by config.
 func Scan(config *Config) (MultiGitStatus, error) {
+	return ScanWithProgress(config, nil)
+}
+
+// ScanWithProgress runs the same scan as [Scan] and invokes onProgress from concurrent
+// discovery and the status loop. Callbacks should be non-blocking (e.g. small channel send).
+func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (MultiGitStatus, error) {
 	ex, e := NewExcluder(config.GitIgnore.FileGlob, config.GitIgnore.DirGlob)
 	if e != nil {
 		return nil, e
@@ -131,6 +152,8 @@ func Scan(config *Config) (MultiGitStatus, error) {
 	ctx := context.Background()
 	repositories := make(chan string, 1000)
 
+	var found, checked atomic.Uint64
+
 	type walkResult struct {
 		err      error
 		duration time.Duration
@@ -138,7 +161,13 @@ func Scan(config *Config) (MultiGitStatus, error) {
 	ch := make(chan walkResult)
 	go func() {
 		start := time.Now()
-		err := Walk(ctx, config, repositories)
+		err := Walk(ctx, config, repositories, func(string) {
+			n := found.Add(1)
+			reportProgress(onProgress, ScanProgress{
+				ReposFound:   int(n),
+				ReposChecked: int(checked.Load()),
+			})
+		})
 		ch <- walkResult{
 			err:      err,
 			duration: time.Since(start),
@@ -148,6 +177,12 @@ func Scan(config *Config) (MultiGitStatus, error) {
 	results := make(MultiGitStatus)
 	totalStatusDuration := time.Duration(0)
 	for d := range repositories {
+		reportProgress(onProgress, ScanProgress{
+			ReposFound:   int(found.Load()),
+			ReposChecked: int(checked.Load()),
+			CurrentPath:  d,
+		})
+
 		start := time.Now()
 
 		st, err := GitStatus(d)
@@ -158,6 +193,12 @@ func Scan(config *Config) (MultiGitStatus, error) {
 
 		duration := time.Since(start)
 		log.Println(d, duration)
+
+		n := checked.Add(1)
+		reportProgress(onProgress, ScanProgress{
+			ReposFound:   int(found.Load()),
+			ReposChecked: int(n),
+		})
 
 		if !st.IsClean() {
 			totalStatusDuration += duration
