@@ -114,7 +114,8 @@ type model struct {
 
 	err error
 
-	helpOpen bool
+	helpOpen    bool
+	whyRepoOpen bool
 
 	zoomed     bool
 	zoomTarget pane // which pane is fullscreen when zoomed

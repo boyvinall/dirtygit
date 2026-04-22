@@ -6,6 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/boyvinall/dirtygit/scanner"
 )
 
 // helpKey reports whether a key toggles the help overlay.
@@ -119,6 +121,7 @@ func (m *model) helpPanel() string {
 		"a  r         With a status file row selected (Status or Diff pane): git add / git reset (unstage) that path",
 		"s            Scan / rescan repositories",
 		"e            Open selected repository (edit.command in config)",
+		"w            With Repositories focused: why this repository is in the list",
 		"q  Ctrl+C    Quit",
 		"?  h         Show this help",
 		"",
@@ -138,6 +141,51 @@ func (m *model) helpPanel() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("39")).
 		Render(padded)
+}
+
+// renderWhyInclusionOverlay shows why the selected repository appears in the list.
+func (m *model) renderWhyInclusionOverlay() string {
+	repo := m.currentRepo()
+	boxW := min(m.width-6, 72)
+	if boxW < 20 {
+		boxW = min(m.width-2, 20)
+	}
+	innerW := max(8, boxW-6)
+	if repo == "" {
+		box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("39")).Width(boxW).Padding(1, 2).Render("No repository selected.")
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
+			lipgloss.WithWhitespaceChars("░"),
+			lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
+			lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
+	}
+	rs, ok := m.repositories[repo]
+	if !ok {
+		box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("39")).Width(boxW).Padding(1, 2).Render("No status data for this path.")
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
+			lipgloss.WithWhitespaceChars("░"),
+			lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
+			lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
+	}
+	lines := scanner.RepoInclusionReasons(rs)
+	if len(lines) == 0 {
+		lines = []string{"No inclusion reason (unexpected for a listed repository)."}
+	}
+	reasons := strings.Join(lines, "\n\n")
+	wrapped := lipgloss.NewStyle().Width(innerW).MaxWidth(innerW).Render(reasons)
+	t := lipgloss.NewStyle().Bold(true).Render("Why is this repository listed?")
+	sub := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render(truncateASCII(repo, innerW))
+	foot := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("w or Esc to close")
+	inner := strings.Join([]string{t, "", sub, "", wrapped, "", foot}, "\n")
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("39")).
+		Width(boxW).
+		Padding(1, 2).
+		Render(inner)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
+		lipgloss.WithWhitespaceChars("░"),
+		lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
+		lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
 }
 
 // framedBlock wraps pane body content in a titled border block.
@@ -340,6 +388,9 @@ func (m *model) View() string {
 	}
 	if m.helpOpen {
 		return m.renderHelpOverlay()
+	}
+	if m.whyRepoOpen {
+		return m.renderWhyInclusionOverlay()
 	}
 	if m.height < minTermHeight {
 		return lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render("Need bigger screen (min height 22).")

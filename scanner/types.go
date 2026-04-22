@@ -151,6 +151,61 @@ func (b BranchStatus) HasLocalRemoteMismatch() bool {
 	return hasRemote && local.UniqueCount > 0
 }
 
+// LocalRemoteMismatchReasons returns a short line explaining why
+// [BranchStatus.HasLocalRemoteMismatch] is true, or nil when that predicate is false.
+func (b BranchStatus) LocalRemoteMismatchReasons() []string {
+	if b.Detached {
+		return nil
+	}
+	var local *BranchLocation
+	for i := range b.Locations {
+		if b.Locations[i].Name == "local" {
+			local = &b.Locations[i]
+			break
+		}
+	}
+	if local == nil || !local.Exists {
+		return nil
+	}
+	branchName := b.Branch
+	if branchName == "" {
+		branchName = "current branch"
+	}
+	hasRemote := false
+	for i := range b.Locations {
+		loc := b.Locations[i]
+		if loc.Name == "local" {
+			continue
+		}
+		hasRemote = true
+		if !loc.Exists {
+			return []string{fmt.Sprintf("On remote %q, there is no same-named branch to compare with your local %q (refs/remotes/…/… missing).", loc.Name, branchName)}
+		}
+		if loc.TipHash != local.TipHash {
+			if !loc.HistoriesUnrelated && loc.Incoming > 0 && loc.Outgoing == 0 {
+				continue
+			}
+			if loc.HistoriesUnrelated {
+				return []string{fmt.Sprintf("On remote %q, %q has unrelated history to your local tip (no merge base).", loc.Name, branchName)}
+			}
+			if loc.Incoming > 0 && loc.Outgoing > 0 {
+				return []string{fmt.Sprintf("On remote %q, %q diverged from the local tip (incoming +%d, outgoing %d).", loc.Name, branchName, loc.Incoming, loc.Outgoing)}
+			}
+			if loc.Outgoing > 0 {
+				return []string{fmt.Sprintf("On remote %q, your local %q is ahead: %d commit(s) not on that remote (tips differ or unpushed).", loc.Name, branchName, loc.Outgoing)}
+			}
+			if loc.Incoming > 0 {
+				return []string{fmt.Sprintf("On remote %q, the same-named ref tip differs from your local %q (and it is not the \"only behind the remote\" case).", loc.Name, branchName)}
+			}
+			return []string{fmt.Sprintf("On remote %q, the same-named ref tip differs from your local branch %q (not the \"only behind the remote\" case).", loc.Name, branchName)}
+		}
+	}
+	if hasRemote && local.UniqueCount > 0 {
+		return []string{fmt.Sprintf("Branch %q: %d commit(s) on local are not on any of the other refs this scan compared (e.g. same-named remotes) — see the Branches pane for detail.", branchName, local.UniqueCount)}
+	}
+	return nil
+}
+
 type PorcelainEntry struct {
 	Staging      git.StatusCode
 	Worktree     git.StatusCode

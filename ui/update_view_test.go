@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	cspinner "github.com/charmbracelet/bubbles/spinner"
@@ -286,5 +287,40 @@ func TestHandleSpinnerTickWhenScanning(t *testing.T) {
 	_, cmd := m.handleSpinnerTick(cspinner.TickMsg{})
 	if cmd == nil {
 		t.Fatal("handleSpinnerTick should return spinner command while scanning")
+	}
+}
+
+// TestWhyInclusionWKey checks that w opens the inclusion modal from the repository pane and Esc closes it.
+func TestWhyInclusionWKey(t *testing.T) {
+	m := newTestModel()
+	m.width = 100
+	m.height = 30
+	m.focus = paneRepo
+	m.repoList = []string{"/r"}
+	m.cursor = 0
+	m.repositories["/r"] = scanner.RepoStatus{}
+
+	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
+	if !handled {
+		t.Fatal("w should be handled in repo pane")
+	}
+	if !m.whyRepoOpen {
+		t.Fatal("w should open why-inclusion modal")
+	}
+
+	s := m.renderWhyInclusionOverlay()
+	if !strings.Contains(s, "Why is this repository") {
+		t.Fatalf("modal should show title, got: %q", s)
+	}
+
+	mod, _ := m.handleWhyRepoOverlayKey(tea.KeyMsg{Type: tea.KeyEsc})
+	if mod.(*model).whyRepoOpen {
+		t.Fatal("esc should close why-inclusion modal")
+	}
+
+	m.focus = paneStatus
+	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
+	if handled {
+		t.Fatal("w with status pane focused should not be handled as command (pass through to navigation)")
 	}
 }

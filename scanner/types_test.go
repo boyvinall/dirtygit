@@ -134,6 +134,17 @@ func TestBranchStatusHasLocalRemoteMismatch(t *testing.T) {
 			},
 			want: true,
 		},
+		{
+			name: "tips match but local has unique-only commits",
+			in: BranchStatus{
+				Branch: "main",
+				Locations: []BranchLocation{
+					{Name: "local", Exists: true, TipHash: "abc", UniqueCount: 2},
+					{Name: "origin", Exists: true, TipHash: "abc"},
+				},
+			},
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -142,6 +153,10 @@ func TestBranchStatusHasLocalRemoteMismatch(t *testing.T) {
 			t.Parallel()
 			if got := tt.in.HasLocalRemoteMismatch(); got != tt.want {
 				t.Fatalf("HasLocalRemoteMismatch() = %v, want %v", got, tt.want)
+			}
+			nonempty := len(tt.in.LocalRemoteMismatchReasons()) > 0
+			if nonempty != tt.want {
+				t.Fatalf("len(LocalRemoteMismatchReasons())>0 = %v, want %v, reasons=%#v", nonempty, tt.want, tt.in.LocalRemoteMismatchReasons())
 			}
 		})
 	}

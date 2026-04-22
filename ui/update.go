@@ -103,6 +103,19 @@ func (m *model) handleHelpOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// handleWhyRepoOverlayKey processes keys while the "why listed" modal is open.
+func (m *model) handleWhyRepoOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "esc", "w":
+		m.whyRepoOpen = false
+		return m, nil
+	default:
+		return m, nil
+	}
+}
+
 // handleScanningKey handles the limited key set allowed during scans.
 func (m *model) handleScanningKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -255,6 +268,12 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	case "e":
 		m.openCurrentRepo()
 		return m, nil, true
+	case "w":
+		if m.focus == paneRepo && m.err == nil && len(m.repoList) > 0 {
+			m.whyRepoOpen = true
+			return m, nil, true
+		}
+		return m, nil, false
 	case "a", "r":
 		if m.statusFileSelected && (m.focus == paneStatus || m.focus == paneDiff) {
 			if path := m.selectedStatusPath(); path != "" {
@@ -391,6 +410,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.helpOpen {
 		return m.handleHelpOverlayKey(msg)
 	}
+	if m.whyRepoOpen {
+		return m.handleWhyRepoOverlayKey(msg)
+	}
 	if m.scanning {
 		return m.handleScanningKey(msg)
 	}
@@ -408,7 +430,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // left-button press. Returns true when the event is consumed (focus changed);
 // otherwise the caller should forward the mouse message as usual.
 func (m *model) handleMouseFocusClick(msg tea.MouseMsg) bool {
-	if m.helpOpen || m.scanning || m.err != nil || m.height < minTermHeight {
+	if m.helpOpen || m.whyRepoOpen || m.scanning || m.err != nil || m.height < minTermHeight {
 		return false
 	}
 	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {
