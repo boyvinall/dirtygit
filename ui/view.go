@@ -122,6 +122,7 @@ func (m *model) helpPanel() string {
 		"s            Scan / rescan repositories",
 		"e            Open selected repository (edit.command in config)",
 		"w            With Repositories focused: why this repository is in the list",
+		"D            With Repositories focused: delete that directory (asks for confirmation)",
 		"q  Ctrl+C    Quit",
 		"?  h         Show this help",
 		"",
@@ -176,6 +177,51 @@ func (m *model) renderWhyInclusionOverlay() string {
 	sub := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render(truncateASCII(repo, innerW))
 	foot := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("w or Esc to close")
 	inner := strings.Join([]string{t, "", sub, "", wrapped, "", foot}, "\n")
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("39")).
+		Width(boxW).
+		Padding(1, 2).
+		Render(inner)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
+		lipgloss.WithWhitespaceChars("░"),
+		lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
+		lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
+}
+
+// renderDeleteRepoConfirmOverlay asks whether to recursively delete the selected repository directory.
+func (m *model) renderDeleteRepoConfirmOverlay() string {
+	repo := m.currentRepo()
+	boxW := min(m.width-6, 72)
+	if boxW < 20 {
+		boxW = min(m.width-2, 20)
+	}
+	innerW := max(8, boxW-6)
+	if repo == "" {
+		box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("39")).Width(boxW).Padding(1, 2).Render("No repository selected.")
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
+			lipgloss.WithWhitespaceChars("░"),
+			lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
+			lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
+	}
+	pathLine := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render(truncateASCII(repo, innerW))
+	t := lipgloss.NewStyle().Bold(true).Render("Delete this directory recursively?")
+	warn := lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Width(innerW).MaxWidth(innerW).Render("This will remove the folder and all of its contents. This cannot be undone.")
+
+	hlYes := lipgloss.NewStyle().Background(lipgloss.Color("160")).Foreground(lipgloss.Color("230"))
+	hlNo := lipgloss.NewStyle().Background(lipgloss.Color("160")).Foreground(lipgloss.Color("230"))
+	plain := lipgloss.NewStyle()
+	var yesBtn, noBtn string
+	if m.deleteConfirmYes {
+		yesBtn = hlYes.Render(" Yes ")
+		noBtn = plain.Render(" No ")
+	} else {
+		yesBtn = plain.Render(" Yes ")
+		noBtn = hlNo.Render(" No ")
+	}
+	btns := lipgloss.JoinHorizontal(lipgloss.Left, yesBtn, "  ", noBtn)
+	foot := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("←/→ or y/n · Enter to confirm · Esc to cancel")
+	inner := strings.Join([]string{t, "", pathLine, "", warn, "", btns, "", foot}, "\n")
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("39")).
@@ -388,6 +434,9 @@ func (m *model) View() string {
 	}
 	if m.helpOpen {
 		return m.renderHelpOverlay()
+	}
+	if m.deleteRepoConfirmOpen {
+		return m.renderDeleteRepoConfirmOverlay()
 	}
 	if m.whyRepoOpen {
 		return m.renderWhyInclusionOverlay()

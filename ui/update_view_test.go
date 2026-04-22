@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -322,5 +323,62 @@ func TestWhyInclusionWKey(t *testing.T) {
 	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
 	if handled {
 		t.Fatal("w with status pane focused should not be handled as command (pass through to navigation)")
+	}
+}
+
+// TestDeleteRepoDKey checks D opens the delete confirm modal, default highlights No, and
+// successful confirmation removes the path from disk and the repo list.
+func TestDeleteRepoDKey(t *testing.T) {
+	tmp := t.TempDir()
+	m := newTestModel()
+	m.width = 100
+	m.height = 30
+	m.focus = paneRepo
+	m.repoList = []string{tmp}
+	m.repositories[tmp] = scanner.RepoStatus{}
+	m.cursor = 0
+
+	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'D'}})
+	if !handled {
+		t.Fatal("D should be handled in repo pane")
+	}
+	if !m.deleteRepoConfirmOpen {
+		t.Fatal("D should open delete confirmation")
+	}
+	if m.deleteConfirmYes {
+		t.Fatal("default selection should be No, not Yes")
+	}
+	overlay := m.renderDeleteRepoConfirmOverlay()
+	if !strings.Contains(overlay, "Delete this directory") {
+		t.Fatalf("expected delete title in overlay, got: %q", overlay)
+	}
+
+	// Enter with No: modal closes, directory still exists
+	mod, _ := m.handleDeleteRepoConfirmKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if mod.(*model).deleteRepoConfirmOpen {
+		t.Fatal("enter (No) should close the modal")
+	}
+	if _, err := os.Stat(tmp); err != nil {
+		t.Fatalf("directory should still exist: %v", err)
+	}
+
+	// Re-open, confirm Yes removes path and prunes the list
+	m.deleteRepoConfirmOpen = true
+	m.deleteConfirmYes = true
+	_, _ = m.handleDeleteRepoConfirmKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if len(m.repoList) != 0 {
+		t.Fatalf("repo list should be empty, got %v", m.repoList)
+	}
+	if _, err := os.Stat(tmp); !os.IsNotExist(err) {
+		t.Fatalf("directory should be removed, stat err = %v", err)
+	}
+
+	m2 := newTestModel()
+	m2.width = 100
+	m2.height = 30
+	m2.focus = paneStatus
+	_, _, handled2 := m2.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	if handled2 {
+		t.Fatal("d with status pane focused should not be handled as delete command")
 	}
 }

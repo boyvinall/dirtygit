@@ -116,6 +116,10 @@ type model struct {
 
 	helpOpen    bool
 	whyRepoOpen bool
+	// deleteRepoConfirmOpen shows the recursive-delete confirmation for the selected repository path.
+	deleteRepoConfirmOpen bool
+	// deleteConfirmYes is true when "Yes" is highlighted; default is false ("No" highlighted).
+	deleteConfirmYes bool
 
 	zoomed     bool
 	zoomTarget pane // which pane is fullscreen when zoomed

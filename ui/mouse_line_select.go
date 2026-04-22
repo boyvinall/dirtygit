@@ -86,7 +86,7 @@ func (m *model) statusPaneFrame() (topY, outerH, outerW int, ok bool) {
 // status pane is already focused. Returns (true, cmd) when the click is
 // handled; cmd may schedule deferred work (e.g. git diff for a new repo).
 func (m *model) handleMousePaneLineSelect(msg tea.MouseMsg) (bool, tea.Cmd) {
-	if m.helpOpen || m.whyRepoOpen || m.scanning || m.err != nil {
+	if m.helpOpen || m.deleteRepoConfirmOpen || m.whyRepoOpen || m.scanning || m.err != nil {
 		return false, nil
 	}
 	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {

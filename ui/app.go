@@ -58,6 +58,7 @@ func (m *model) beginScan() tea.Cmd {
 	}
 	m.err = nil
 	m.whyRepoOpen = false
+	m.deleteRepoConfirmOpen = false
 	m.scanning = true
 	m.scanProgress = scanner.ScanProgress{}
 	m.scanProgressCh = make(chan scanner.ScanProgress, 256)
