@@ -39,7 +39,9 @@ followsymlinks: true
 # remote) whose short name matches any of these regexes
 branches:
   hidelocalonly:
-    regex: []
+    regex:
+      - ^gitbutler/ # hide local-only branches created by gitbutler
+
   # local branch names to always show when present, even when every remote tip matches
   default:
     - main

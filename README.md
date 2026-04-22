@@ -1,16 +1,20 @@
 # dirtygit
 
-Do you find yourself context-switching between a bunch of different git repos?
+## What does this do?
 
-Have you ever accidentally discovered that changes you've made locally have not
-been committed or pushed to your git server?
+- Scans a whole bunch of directories looking for git repos
+- Shows you only the ones that seem to be somehow dirty, i.e. one of:
+  - It has uncommitted file
+  - It has local branches that don't match remote branches
 
-`dirtygit` is a terminal UI that walks configured directories, finds git
-repositories that need attention, and surfaces them in one place. A repo is
-listed when it has **uncommitted changes** (after your ignore rules) or when the
-**current branch** differs from what your **remotes** expect (missing same-named
-remote branch, different tips, or unpushed / unpulled commits summarized per
-remote).
+## Why is this useful?
+
+You're busy.  You probably context-swapped a while back and forgot to commit/push a thing.
+
+There's a whole bunch of tools that are very good at managing a single git repo, but I've not
+found many that look at the bigger picture.  `dirtygit` helps you to know whether you care
+about the things that are only on your local system, so that you can ensure they get pushed
+to your git server.
 
 ## Source-mode installation
 
@@ -31,7 +35,7 @@ Environment variables in paths are expanded. Options include:
 
 | Area                           | Purpose                                                                                                         |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `scandirs`                     | `include` / `exclude` roots for the walk                                                                        |
+| `scandirs`                     | `include` / `exclude` roots for the walk – YOU SHOULD CONFIGURE AT LEAST THIS                                   |
 | `gitignore`                    | Extra `fileglob` / `dirglob` ignores on top of each repo’s `.gitignore`                                         |
 | `followsymlinks`               | Whether to descend symlinked directories                                                                        |
 | `branches.hidelocalonly.regex` | Regexes (full string match per pattern) for **local-only** branches to omit from the branch pane                |
@@ -58,7 +62,6 @@ your config for that run (paths are still expanded from the environment).
 | Flag             | Meaning                                            |
 | ---------------- | -------------------------------------------------- |
 | `--config`, `-c` | Config file path (default: `~/.dirtygit.yml`)      |
-| `--debug`        | Skip the UI; print per-repo scan timings to stdout |
 
 ![demo](demo.gif)
 
