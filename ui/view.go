@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// helpKey reports whether a key toggles the help overlay.
 func helpKey(msg tea.KeyMsg) bool {
 	switch msg.String() {
 	case "?", "h", "shift+/":
@@ -17,6 +18,7 @@ func helpKey(msg tea.KeyMsg) bool {
 	}
 }
 
+// scanProgressBar renders a fixed-width bar for scan completion progress.
 func scanProgressBar(width, checked, found int) string {
 	if width < 1 {
 		return ""
@@ -26,6 +28,7 @@ func scanProgressBar(width, checked, found int) string {
 	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }
 
+// shortenScanPath truncates long scan paths from the left.
 func shortenScanPath(path string, max int) string {
 	if max < 8 || path == "" || len(path) <= max {
 		return path
@@ -36,6 +39,7 @@ func shortenScanPath(path string, max int) string {
 // scanModalInnerLines is the fixed content row count inside the scan popup (excluding border/padding).
 const scanModalInnerLines = 9
 
+// truncateASCII truncates a string and appends an ellipsis.
 func truncateASCII(s string, max int) string {
 	if max < 2 || len(s) <= max {
 		return s
@@ -43,6 +47,7 @@ func truncateASCII(s string, max int) string {
 	return s[:max-1] + "…"
 }
 
+// scanProgressPopup renders the centered modal shown while scanning.
 func (m *model) scanProgressPopup() string {
 	p := m.scanProgress
 	boxW := min(m.width-6, 64)
@@ -101,6 +106,7 @@ func (m *model) scanProgressPopup() string {
 		Render(body)
 }
 
+// helpPanel renders keyboard shortcut documentation.
 func (m *model) helpPanel() string {
 	lines := []string{
 		"Tab          Focus next pane (Repositories → Status → Diff → Log); when zoomed, cycle pane",
@@ -126,6 +132,7 @@ func (m *model) helpPanel() string {
 		Render("Keyboard shortcuts\n\n" + content)
 }
 
+// framedBlock wraps pane body content in a titled border block.
 func (m *model) framedBlock(p pane, outerH int, title string, body string) string {
 	fg := lipgloss.Color("240")
 	if m.focus == p {
@@ -158,6 +165,7 @@ func (m *model) framedBlock(p pane, outerH int, title string, body string) strin
 	return strings.Join(framed, "\n")
 }
 
+// repoListView renders the repository list with current selection styling.
 func (m *model) repoListView(innerH int) string {
 	selFocused := lipgloss.NewStyle().Background(lipgloss.Color("42")).Foreground(lipgloss.Color("0"))
 	selBlurred := lipgloss.NewStyle().Background(lipgloss.Color("248")).Foreground(lipgloss.Color("0"))
@@ -184,6 +192,7 @@ func (m *model) repoListView(innerH int) string {
 		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
 }
 
+// renderHelpOverlay centers and draws the help panel.
 func (m *model) renderHelpOverlay() string {
 	help := m.helpPanel()
 	h := m.height
@@ -195,6 +204,7 @@ func (m *model) renderHelpOverlay() string {
 		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
 }
 
+// renderScanOverlay centers and draws the scanning modal.
 func (m *model) renderScanOverlay() string {
 	popup := m.scanProgressPopup()
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, popup,
@@ -203,6 +213,7 @@ func (m *model) renderScanOverlay() string {
 		lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
 }
 
+// renderZoomedPane draws only the active pane in fullscreen mode.
 func (m *model) renderZoomedPane(repoBody int) string {
 	switch m.zoomTarget {
 	case paneRepo:
@@ -219,6 +230,7 @@ func (m *model) renderZoomedPane(repoBody int) string {
 	}
 }
 
+// renderMainStack composes the standard four-pane vertical layout.
 func (m *model) renderMainStack(repoBody, statusBody, diffBody, logBody int) string {
 	repoOuter := panelOuter(repoBody)
 	statusOuter := panelOuter(statusBody)
@@ -234,6 +246,7 @@ func (m *model) renderMainStack(repoBody, statusBody, diffBody, logBody int) str
 	return lipgloss.JoinVertical(lipgloss.Left, repoBlock, statusBlock, diffBlock, logBlock)
 }
 
+// renderErrorOverlay shows an error dialog with recovery hints.
 func (m *model) renderErrorOverlay() string {
 	errW := min(m.width-4, 80)
 	errBox := lipgloss.NewStyle().
@@ -247,6 +260,7 @@ func (m *model) renderErrorOverlay() string {
 		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
 }
 
+// View renders the full terminal UI for the current model state.
 func (m *model) View() string {
 	if m.width == 0 {
 		return ""

@@ -11,6 +11,7 @@ import (
 	"github.com/boyvinall/dirtygit/scanner"
 )
 
+// pane identifies which UI pane currently owns focus.
 type pane int
 
 const (
@@ -22,8 +23,10 @@ const (
 
 const minTermHeight = 22
 
+// tickMsg drives periodic polling while scans are running.
 type tickMsg struct{}
 
+// diffMode selects whether Diff shows worktree or staged changes.
 type diffMode int
 
 const (
@@ -31,17 +34,20 @@ const (
 	diffModeStaged
 )
 
+// scanResult carries the finished scan data and any scan error.
 type scanResult struct {
 	mgs scanner.MultiGitStatus
 	err error
 }
 
+// logBuffer stores a bounded in-memory log stream for the Log pane.
 type logBuffer struct {
 	mu    sync.Mutex
 	lines []string
 	max   int
 }
 
+// Write appends incoming log bytes while keeping only the newest lines.
 func (b *logBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -60,12 +66,14 @@ func (b *logBuffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// String returns the buffered log lines joined by newlines.
 func (b *logBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return strings.Join(b.lines, "\n")
 }
 
+// model contains all Bubble Tea UI state for dirtygit.
 type model struct {
 	config *scanner.Config
 	logBuf *logBuffer

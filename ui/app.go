@@ -11,6 +11,7 @@ import (
 	"github.com/boyvinall/dirtygit/scanner"
 )
 
+// tickCmd schedules the next scan progress poll.
 func tickCmd() tea.Cmd {
 	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg{}
@@ -44,10 +45,12 @@ func Run(config *scanner.Config) error {
 	return nil
 }
 
+// Init starts the initial repository scan when the app launches.
 func (m *model) Init() tea.Cmd {
 	return m.beginScan()
 }
 
+// beginScan kicks off an asynchronous repository scan.
 func (m *model) beginScan() tea.Cmd {
 	if m.scanning {
 		return nil
@@ -75,6 +78,7 @@ func (m *model) beginScan() tea.Cmd {
 	})
 }
 
+// drainScanProgress consumes queued progress updates and keeps the newest one.
 func (m *model) drainScanProgress() {
 	if m.scanProgressCh == nil {
 		return

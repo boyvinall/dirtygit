@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// handleWindowSize updates dimensions and recomputes pane layout.
 func (m *model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.width = msg.Width
 	m.height = msg.Height
@@ -23,6 +24,7 @@ func (m *model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleSpinnerTick advances the spinner and drains scan progress updates.
 func (m *model) handleSpinnerTick(msg cspinner.TickMsg) (tea.Model, tea.Cmd) {
 	if !m.scanning {
 		return m, nil
@@ -33,6 +35,7 @@ func (m *model) handleSpinnerTick(msg cspinner.TickMsg) (tea.Model, tea.Cmd) {
 	return m, spinCmd
 }
 
+// finishScan stores scan results and resets scanning state.
 func (m *model) finishScan(r scanResult) {
 	m.scanning = false
 	m.drainScanProgress()
@@ -50,6 +53,7 @@ func (m *model) finishScan(r scanResult) {
 	}
 }
 
+// handleScanTick polls for scan completion and schedules the next poll.
 func (m *model) handleScanTick() (tea.Model, tea.Cmd) {
 	if !m.scanning {
 		return m, nil
@@ -65,6 +69,7 @@ func (m *model) handleScanTick() (tea.Model, tea.Cmd) {
 	}
 }
 
+// handleHelpOverlayKey processes keys while the help overlay is open.
 func (m *model) handleHelpOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
@@ -78,6 +83,7 @@ func (m *model) handleHelpOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// handleScanningKey handles the limited key set allowed during scans.
 func (m *model) handleScanningKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q":
@@ -87,6 +93,7 @@ func (m *model) handleScanningKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// toggleZoom enters or exits fullscreen mode for the focused pane.
 func (m *model) toggleZoom() {
 	if m.zoomed {
 		m.zoomed = false
@@ -96,6 +103,7 @@ func (m *model) toggleZoom() {
 	m.zoomTarget = m.focus
 }
 
+// cycleFocus moves focus across panes in forward or reverse order.
 func (m *model) cycleFocus(forward bool) {
 	const paneCount = 4
 	if m.zoomed {
@@ -115,6 +123,7 @@ func (m *model) cycleFocus(forward bool) {
 	m.focus = (m.focus - 1 + paneCount) % paneCount
 }
 
+// openCurrentRepo opens the selected repository in VS Code.
 func (m *model) openCurrentRepo() {
 	repo := m.currentRepo()
 	if repo != "" {
@@ -122,6 +131,7 @@ func (m *model) openCurrentRepo() {
 	}
 }
 
+// handleCommandKey handles global command keys and focus controls.
 func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	switch msg.String() {
 	case "ctrl+c", "q":
@@ -168,6 +178,7 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
+// handleArrowKey applies directional key behavior for the focused pane.
 func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	switch msg.Type {
 	case tea.KeyUp, tea.KeyDown:
@@ -229,6 +240,7 @@ func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
+// handleKey routes keyboard input through overlay, command, and navigation handlers.
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.helpOpen {
 		return m.handleHelpOverlayKey(msg)
@@ -246,6 +258,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handlePassiveInput forwards non-command input to focused interactive widgets.
 func (m *model) handlePassiveInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
 	case tea.KeyMsg, tea.MouseMsg:
@@ -280,6 +293,7 @@ func (m *model) handlePassiveInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// Update handles Bubble Tea messages and advances application state.
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:

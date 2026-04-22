@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// diffModeLabel returns the current Diff pane mode label.
 func (m *model) diffModeLabel() string {
 	if m.diffMode == diffModeStaged {
 		return "Staged"
@@ -16,6 +17,7 @@ func (m *model) diffModeLabel() string {
 	return "Worktree"
 }
 
+// refreshDiffContent reloads the visible diff text when needed.
 func (m *model) refreshDiffContent() {
 	if !m.diffNeedsRefresh {
 		return
@@ -49,6 +51,7 @@ func (m *model) refreshDiffContent() {
 	m.diffContent = styleDiffContent(out)
 }
 
+// styleDiffContent colorizes git diff output for terminal display.
 func styleDiffContent(raw string) string {
 	if raw == "" {
 		return ""
@@ -86,6 +89,7 @@ func styleDiffContent(raw string) string {
 	return strings.Join(lines, "\n")
 }
 
+// gitDiff runs git diff for a repository and optional file path.
 func gitDiff(repo, path string, staged bool) (string, error) {
 	args := []string{"diff"}
 	if staged {

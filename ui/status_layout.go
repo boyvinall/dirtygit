@@ -68,10 +68,12 @@ func (m *model) layoutBodies() (repoBody, statusBody, diffBody, logBody int) {
 	return repoBody, statusBody, diffBody, logBody
 }
 
+// panelOuter converts an inner body height into full framed panel height.
 func panelOuter(body int) int {
 	return body + 2 // top border (with title) + body + bottom border
 }
 
+// innerWidth returns content width available inside pane borders.
 func (m *model) innerWidth() int {
 	w := m.width - 4
 	if w < 8 {
@@ -80,6 +82,7 @@ func (m *model) innerWidth() int {
 	return w
 }
 
+// syncViewports applies layout dimensions and refreshes pane content.
 func (m *model) syncViewports() {
 	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
 	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
@@ -104,6 +107,7 @@ func (m *model) syncViewports() {
 	m.logVP.SetContent(m.logBuf.String())
 }
 
+// sortedRepoPaths returns repository paths in stable alphabetical order.
 func sortedRepoPaths(mgs scanner.MultiGitStatus) []string {
 	paths := make([]string, 0, len(mgs))
 	for r := range mgs {
@@ -113,6 +117,7 @@ func sortedRepoPaths(mgs scanner.MultiGitStatus) []string {
 	return paths
 }
 
+// newStatusTable builds the status pane table with default styling.
 func newStatusTable() table.Model {
 	t := table.New(
 		table.WithColumns(statusColumns(48)),
@@ -126,6 +131,7 @@ func newStatusTable() table.Model {
 	return t
 }
 
+// statusColumns computes table column widths for the given pane width.
 func statusColumns(totalWidth int) []table.Column {
 	stagedWidth := 10
 	worktreeWidth := 10
@@ -137,6 +143,7 @@ func statusColumns(totalWidth int) []table.Column {
 	}
 }
 
+// refreshStatusContent rebuilds status rows for the selected repository.
 func (m *model) refreshStatusContent() {
 	repo := m.currentRepo()
 	st, ok := m.repositories[repo]
@@ -187,6 +194,7 @@ func (m *model) refreshStatusContent() {
 	}
 }
 
+// selectedStatusPath returns the currently highlighted file path.
 func (m *model) selectedStatusPath() string {
 	if !m.statusFileSelected {
 		return ""
@@ -198,6 +206,7 @@ func (m *model) selectedStatusPath() string {
 	return m.statusPaths[i]
 }
 
+// statusCodeLabel maps git status codes to human-friendly labels.
 func statusCodeLabel(code git.StatusCode) string {
 	switch code {
 	case 'M':
@@ -223,6 +232,7 @@ func statusCodeLabel(code git.StatusCode) string {
 	}
 }
 
+// currentRepo returns the repository currently selected in the list.
 func (m *model) currentRepo() string {
 	if m.cursor < 0 || m.cursor >= len(m.repoList) {
 		return ""
@@ -230,6 +240,7 @@ func (m *model) currentRepo() string {
 	return m.repoList[m.cursor]
 }
 
+// borderFor picks a heavier border for the active pane.
 func borderFor(p, active pane) lipgloss.Border {
 	if p == active {
 		return lipgloss.ThickBorder()
@@ -237,6 +248,7 @@ func borderFor(p, active pane) lipgloss.Border {
 	return lipgloss.NormalBorder()
 }
 
+// sectionTitle highlights pane titles when the pane is focused.
 func (m *model) sectionTitle(p pane, label string) string {
 	if m.focus == p {
 		return lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true).Render(label)

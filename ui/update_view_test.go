@@ -9,6 +9,7 @@ import (
 	"github.com/boyvinall/dirtygit/scanner"
 )
 
+// TestHelpAndUtilityFunctions validates shared key and formatting helpers.
 func TestHelpAndUtilityFunctions(t *testing.T) {
 	if !helpKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}}) {
 		t.Fatal("helpKey(?) should be true")
@@ -39,6 +40,7 @@ func TestHelpAndUtilityFunctions(t *testing.T) {
 	}
 }
 
+// TestHandleHelpOverlayKey ensures overlay keys close the help modal.
 func TestHandleHelpOverlayKey(t *testing.T) {
 	m := newTestModel()
 	m.helpOpen = true
@@ -55,6 +57,7 @@ func TestHandleHelpOverlayKey(t *testing.T) {
 	}
 }
 
+// TestHandleCommandKeyFocusAndZoom checks tab focus and zoom toggling behavior.
 func TestHandleCommandKeyFocusAndZoom(t *testing.T) {
 	m := newTestModel()
 	m.width = 100
@@ -82,6 +85,7 @@ func TestHandleCommandKeyFocusAndZoom(t *testing.T) {
 	}
 }
 
+// TestHandleArrowKeyRepoNavigation verifies repo cursor movement with arrows.
 func TestHandleArrowKeyRepoNavigation(t *testing.T) {
 	m := newTestModel()
 	m.focus = paneRepo
@@ -99,6 +103,7 @@ func TestHandleArrowKeyRepoNavigation(t *testing.T) {
 	}
 }
 
+// TestHandleArrowKeyDiffModeToggle verifies staged/worktree diff switching.
 func TestHandleArrowKeyDiffModeToggle(t *testing.T) {
 	m := newTestModel()
 	m.focus = paneDiff
@@ -115,6 +120,7 @@ func TestHandleArrowKeyDiffModeToggle(t *testing.T) {
 	}
 }
 
+// TestHandleCommandKeyEscClearsStatusSelection ensures Esc clears status focus state.
 func TestHandleCommandKeyEscClearsStatusSelection(t *testing.T) {
 	m := newTestModel()
 	m.focus = paneStatus
@@ -133,6 +139,7 @@ func TestHandleCommandKeyEscClearsStatusSelection(t *testing.T) {
 	}
 }
 
+// TestHandleScanTickFinishesScan ensures completed scan updates model state.
 func TestHandleScanTickFinishesScan(t *testing.T) {
 	m := newTestModel()
 	m.width = 100
@@ -163,6 +170,7 @@ func TestHandleScanTickFinishesScan(t *testing.T) {
 	}
 }
 
+// TestHandleSpinnerTickWhenScanning ensures spinner keeps ticking during scans.
 func TestHandleSpinnerTickWhenScanning(t *testing.T) {
 	m := newTestModel()
 	m.scanning = true

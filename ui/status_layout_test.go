@@ -10,6 +10,7 @@ import (
 	"github.com/boyvinall/dirtygit/scanner"
 )
 
+// newTestModel builds a model with minimal defaults for UI unit tests.
 func newTestModel() *model {
 	m := &model{
 		logBuf:           &logBuffer{max: 50},
@@ -24,6 +25,7 @@ func newTestModel() *model {
 	return m
 }
 
+// TestLayoutBodies verifies valid pane body sizes on normal terminals.
 func TestLayoutBodies(t *testing.T) {
 	m := newTestModel()
 	m.width = 100
@@ -39,6 +41,7 @@ func TestLayoutBodies(t *testing.T) {
 	}
 }
 
+// TestLayoutBodiesReturnsZerosOnSmallScreen ensures tiny terminals short-circuit layout.
 func TestLayoutBodiesReturnsZerosOnSmallScreen(t *testing.T) {
 	m := newTestModel()
 	m.width = 10
@@ -50,6 +53,7 @@ func TestLayoutBodiesReturnsZerosOnSmallScreen(t *testing.T) {
 	}
 }
 
+// TestLayoutBodiesZoomedPaneOnly ensures zoom mode only sizes one pane.
 func TestLayoutBodiesZoomedPaneOnly(t *testing.T) {
 	m := newTestModel()
 	m.width = 80
@@ -63,6 +67,7 @@ func TestLayoutBodiesZoomedPaneOnly(t *testing.T) {
 	}
 }
 
+// TestSortedRepoPaths checks repository path ordering is alphabetical.
 func TestSortedRepoPaths(t *testing.T) {
 	got := sortedRepoPaths(scanner.MultiGitStatus{
 		"/z": {},
@@ -77,6 +82,7 @@ func TestSortedRepoPaths(t *testing.T) {
 	}
 }
 
+// TestRefreshStatusContentUsesPorcelainAndSorts validates porcelain-first rendering.
 func TestRefreshStatusContentUsesPorcelainAndSorts(t *testing.T) {
 	m := newTestModel()
 	m.repoList = []string{"/repo"}
@@ -102,6 +108,7 @@ func TestRefreshStatusContentUsesPorcelainAndSorts(t *testing.T) {
 	}
 }
 
+// TestRefreshStatusContentFallsBackToGitStatus validates status-map fallback behavior.
 func TestRefreshStatusContentFallsBackToGitStatus(t *testing.T) {
 	m := newTestModel()
 	m.repoList = []string{"/repo"}
@@ -122,6 +129,7 @@ func TestRefreshStatusContentFallsBackToGitStatus(t *testing.T) {
 	}
 }
 
+// TestStatusCodeLabel verifies human labels for git status codes.
 func TestStatusCodeLabel(t *testing.T) {
 	cases := map[git.StatusCode]string{
 		'M': "modified",
@@ -143,6 +151,7 @@ func TestStatusCodeLabel(t *testing.T) {
 	}
 }
 
+// TestCurrentRepoBounds ensures cursor bounds return expected repository paths.
 func TestCurrentRepoBounds(t *testing.T) {
 	m := newTestModel()
 	m.repoList = []string{"/a", "/b"}
@@ -161,6 +170,7 @@ func TestCurrentRepoBounds(t *testing.T) {
 	}
 }
 
+// TestSyncViewportsSetsDimensions checks positive dimensions after layout sync.
 func TestSyncViewportsSetsDimensions(t *testing.T) {
 	m := newTestModel()
 	m.width = 100
