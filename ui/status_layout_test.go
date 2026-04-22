@@ -36,8 +36,8 @@ func TestLayoutBodies(t *testing.T) {
 	if repoBody < 3 || statusBody < 3 || diffBody < 3 || logBody < 3 {
 		t.Fatalf("layoutBodies() = (%d, %d, %d, %d), expected all >= 3", repoBody, statusBody, diffBody, logBody)
 	}
-	if statusBody != diffBody {
-		t.Fatalf("layoutBodies() status and diff should match, got status=%d diff=%d", statusBody, diffBody)
+	if diffBody < statusBody*3 {
+		t.Fatalf("layoutBodies() expected diff to be at least 3x status, got status=%d diff=%d", statusBody, diffBody)
 	}
 }
 

@@ -54,14 +54,10 @@ func (m *model) layoutBodies() (repoBody, statusBody, diffBody, logBody int) {
 		return 0, 0, 0, 0
 	}
 
-	// Keep Status and Diff panes the same height.
-	if available%2 != 0 {
-		repoBody++
-		available--
-	}
-
-	statusBody = available / 2
-	diffBody = statusBody
+	// Give Status and Diff a 1:3 height split.
+	// Any remainder rows go to Diff to keep it as large as possible.
+	statusBody = available / 4
+	diffBody = available - statusBody
 	if statusBody < 3 || diffBody < 3 || logBody < 3 || repoBody < 3 {
 		return 0, 0, 0, 0
 	}
