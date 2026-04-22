@@ -99,7 +99,27 @@ func TestBranchStatusHasLocalRemoteMismatch(t *testing.T) {
 			in: BranchStatus{
 				Locations: []BranchLocation{
 					{Name: "local", Exists: true, TipHash: "aaa"},
-					{Name: "origin", Exists: true, TipHash: "bbb"},
+					{Name: "origin", Exists: true, TipHash: "bbb", Incoming: 0, Outgoing: 1},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "remote ahead of local (behind)",
+			in: BranchStatus{
+				Locations: []BranchLocation{
+					{Name: "local", Exists: true, TipHash: "aaa"},
+					{Name: "origin", Exists: true, TipHash: "bbb", Incoming: 2, Outgoing: 0},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "remote ahead but unrelated histories",
+			in: BranchStatus{
+				Locations: []BranchLocation{
+					{Name: "local", Exists: true, TipHash: "aaa"},
+					{Name: "origin", Exists: true, TipHash: "bbb", HistoriesUnrelated: true, Incoming: 1, Outgoing: 0},
 				},
 			},
 			want: true,

@@ -112,7 +112,8 @@ type BranchLocation struct {
 }
 
 // HasLocalRemoteMismatch reports whether the current local branch differs from
-// any tracked remote location for the same branch name.
+// any tracked remote location for the same branch name. A clean repo that is
+// only behind the remote (incoming commits, nothing to push) is not a mismatch.
 func (b BranchStatus) HasLocalRemoteMismatch() bool {
 	if b.Detached {
 		return false
@@ -140,6 +141,9 @@ func (b BranchStatus) HasLocalRemoteMismatch() bool {
 			return true
 		}
 		if loc.TipHash != local.TipHash {
+			if !loc.HistoriesUnrelated && loc.Incoming > 0 && loc.Outgoing == 0 {
+				continue
+			}
 			return true
 		}
 	}
