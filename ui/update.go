@@ -364,16 +364,26 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
+// listKeyScrollPage is the step size for Shift+↑/↓ in scrollable lists and viewports.
+const listKeyScrollPage = 10
+
 // handleArrowKey applies directional key behavior for the focused pane.
 func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	switch msg.Type {
-	case tea.KeyUp, tea.KeyDown:
+	case tea.KeyUp, tea.KeyDown, tea.KeyShiftUp, tea.KeyShiftDown:
+		step := 1
+		if msg.Type == tea.KeyShiftUp || msg.Type == tea.KeyShiftDown {
+			step = listKeyScrollPage
+		}
+		up := msg.Type == tea.KeyUp || msg.Type == tea.KeyShiftUp
+		down := msg.Type == tea.KeyDown || msg.Type == tea.KeyShiftDown
+
 		if m.focus == paneRepo {
 			prev := m.cursor
-			if msg.Type == tea.KeyUp && m.cursor > 0 {
-				m.cursor--
-			} else if msg.Type == tea.KeyDown && m.cursor < len(m.repoList)-1 {
-				m.cursor++
+			if up && m.cursor > 0 {
+				m.cursor = max(0, m.cursor-step)
+			} else if down && len(m.repoList) > 0 && m.cursor < len(m.repoList)-1 {
+				m.cursor = min(len(m.repoList)-1, m.cursor+step)
 			}
 			if m.cursor != prev {
 				m.statusFileSelected = false
@@ -393,7 +403,15 @@ func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 				m.statusTable.Focus()
 			}
 			var cmd tea.Cmd
-			m.statusTable, cmd = m.statusTable.Update(msg)
+			if step == listKeyScrollPage {
+				if up {
+					m.statusTable.MoveUp(listKeyScrollPage)
+				} else {
+					m.statusTable.MoveDown(listKeyScrollPage)
+				}
+			} else {
+				m.statusTable, cmd = m.statusTable.Update(msg)
+			}
 			if len(m.statusPaths) > 0 {
 				m.statusFileSelected = true
 				m.diffNeedsRefresh = true
@@ -402,12 +420,28 @@ func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 			return m, cmd, true
 		}
 		if m.focus == paneDiff {
+			if step == listKeyScrollPage {
+				if up {
+					m.diffVP.ScrollUp(listKeyScrollPage)
+				} else {
+					m.diffVP.ScrollDown(listKeyScrollPage)
+				}
+				return m, nil, true
+			}
 			var cmd tea.Cmd
 			m.diffVP, cmd = m.diffVP.Update(msg)
 			return m, cmd, true
 		}
 		if m.focus == paneLog {
 			m.logVP.SetContent(m.logBuf.String())
+			if step == listKeyScrollPage {
+				if up {
+					m.logVP.ScrollUp(listKeyScrollPage)
+				} else {
+					m.logVP.ScrollDown(listKeyScrollPage)
+				}
+				return m, nil, true
+			}
 			var cmd tea.Cmd
 			m.logVP, cmd = m.logVP.Update(msg)
 			return m, cmd, true

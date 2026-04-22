@@ -59,9 +59,9 @@ dirtygit [ <directories...> ]
 If you pass one or more `<directories>`, they replace `scandirs.include` from
 your config for that run (paths are still expanded from the environment).
 
-| Flag             | Meaning                                            |
-| ---------------- | -------------------------------------------------- |
-| `--config`, `-c` | Config file path (default: `~/.dirtygit.yml`)      |
+| Flag             | Meaning                                       |
+| ---------------- | --------------------------------------------- |
+| `--config`, `-c` | Config file path (default: `~/.dirtygit.yml`) |
 
 ![demo](demo.gif)
 
@@ -73,12 +73,18 @@ found, how many have been checked, and the path currently being processed.
 
 Focus moves across five panes in order: **Repositories**, **Status**, **Branches**,
 **Diff**, and **Log**. **Status** and **Branches** share one row (side by side); **Diff**
-sits below them. The Status table lists dirty files with **Worktree** and **Staged**
-columns (same left-to-right order as the Diff pane). The Diff pane runs `git
-diff` with basic colorization; use **←** / **→** in Status or Diff to switch between
-**Worktree** and **Staged** views. With a file row selected, **a** runs `git add` and **r**
-runs `git reset` (unstage) on that path (from the Status or Diff pane), then the
-current repo is refreshed.
+sits below them. The mouse is enabled: **click** a pane to focus it, or a row in
+**Repositories** / **Status** to move the selection. **Drag** a pane border to resize
+splits (unavailable when zoomed, scanning, on error, or with an overlay open). The Status table
+lists dirty files with **Worktree** and **Staged** columns (same left-to-right
+order as the Diff pane). The Diff pane runs `git diff` with basic colorization;
+use **←** / **→** in Status or Diff to switch between **Worktree** and **Staged** views.
+With a file row selected, **a** runs `git add` and **r** runs `git reset` (unstage) on
+that path (from the Status or Diff pane), then the current repo is refreshed.
+
+With **Repositories** focused, **w** opens a short explanation of why the current repo
+is listed, and **D** asks to recursively **delete** that directory on disk (with
+confirmation). Both are for housekeeping local clones you no longer need.
 
 The **Branches** pane lists local branches that need attention: tips that do not
 match every configured remote, missing same-named remote refs, or branches listed
@@ -87,18 +93,22 @@ under `branches.default`. Local-only branches can be hidden when they match
 compresses each remote into a short status (`ok`, `missing`, `differs`, or
 `+N` / `-M` style counts when histories are comparable).
 
-| Key                 | Action                                                                              |
-| ------------------- | ----------------------------------------------------------------------------------- |
-| `Tab` / `Shift+Tab` | Next / previous pane (when zoomed, cycles which pane is fullscreen)                 |
-| `Enter`             | Zoom the focused pane; `Enter` again restores the split layout                      |
-| `Esc`               | Exit zoom, or clear the Status file selection                                       |
-| `↑` / `↓`           | Move repo selection, or scroll Status / Diff / Log                                  |
-| `←` / `→`           | In Status or Diff: Worktree vs Staged diff                                          |
-| `a` / `r`           | With a status file row selected (Status or Diff): `git add` / `git reset` that path |
-| `s`                 | Scan or rescan                                                                      |
-| `e`                 | Open the selected repo using `edit.command` from config                             |
-| `q` / `Ctrl+C`      | Quit                                                                                |
-| `?` / `h`           | Toggle help (same keys plus `Esc` close the overlay)                                |
+| Key                   | Action                                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| *Mouse*               | Click to focus a pane; in Repositories or Status (when focused), select a row. Drag a border to resize splits (unavailable when zoomed, scanning, on error, or with an overlay open) |
+| `Tab` / `Shift+Tab`   | Next / previous pane; when zoomed, cycle which pane is fullscreen                                                                                                                    |
+| `Enter`               | Zoom the focused pane; `Enter` again restores the split layout                                                                                                                       |
+| `Esc`                 | Exit zoom, or clear the Status file selection                                                                                                                                        |
+| `↑` / `↓`             | Move repo selection, or scroll Status / Diff / Log                                                                                                                                   |
+| `Shift+↑` / `Shift+↓` | Same, in steps of 10 lines                                                                                                                                                           |
+| `←` / `→`             | In Status or Diff: Worktree vs Staged diff                                                                                                                                           |
+| `a` / `r`             | With a status file row selected (Status or Diff): `git add` / `git reset` that path                                                                                                  |
+| `s`                   | Scan or rescan                                                                                                                                                                       |
+| `e`                   | Open the selected repo using `edit.command` from config                                                                                                                              |
+| `w`                   | With Repositories focused: why this repository is in the list                                                                                                                        |
+| `D`                   | With Repositories focused: delete that directory (asks for confirmation)                                                                                                             |
+| `q` / `Ctrl+C`        | Quit                                                                                                                                                                                 |
+| `?` / `h`             | Show help (`Esc`, `?`, or `h` closes the overlay; `q` / `Ctrl+C` still quit)                                                                                                         |
 
 ## Development
 

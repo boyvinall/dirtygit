@@ -115,6 +115,33 @@ func TestHandleArrowKeyRepoNavigation(t *testing.T) {
 	}
 }
 
+// TestHandleArrowKeyRepoShiftStep verifies Shift+↓/↑ moves the repo cursor by 10 (clamped).
+func TestHandleArrowKeyRepoShiftStep(t *testing.T) {
+	m := newTestModel()
+	m.focus = paneRepo
+	m.repoList = make([]string, 25)
+	for i := range m.repoList {
+		m.repoList[i] = "/r"
+	}
+	m.cursor = 0
+
+	_, _, handled := m.handleArrowKey(tea.KeyMsg{Type: tea.KeyShiftDown})
+	if !handled || m.cursor != 10 {
+		t.Fatalf("shift+down from 0 should go to 10, got cursor=%d handled=%v", m.cursor, handled)
+	}
+
+	_, _, handled = m.handleArrowKey(tea.KeyMsg{Type: tea.KeyShiftUp})
+	if !handled || m.cursor != 0 {
+		t.Fatalf("shift+up from 10 should go to 0, got cursor=%d handled=%v", m.cursor, handled)
+	}
+
+	m.cursor = 20
+	_, _, handled = m.handleArrowKey(tea.KeyMsg{Type: tea.KeyShiftDown})
+	if !handled || m.cursor != 24 {
+		t.Fatalf("shift+down from 20 should clamp to last index 24, got cursor=%d handled=%v", m.cursor, handled)
+	}
+}
+
 // TestRepoListScrollFollowsCursor ensures moving past the last visible row scrolls the repo pane.
 func TestRepoListScrollFollowsCursor(t *testing.T) {
 	m := newTestModel()
