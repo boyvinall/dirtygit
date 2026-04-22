@@ -9,10 +9,10 @@ require (
 	github.com/go-git/go-git/v5 v5.4.2
 	github.com/karrick/godirwalk v1.17.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/pkg/errors v0.9.1
+	github.com/muesli/termenv v0.16.0
 	github.com/urfave/cli/v2 v2.8.1
 	golang.org/x/sync v0.4.0
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -42,7 +42,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.19 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
-	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect

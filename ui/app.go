@@ -11,6 +11,13 @@ import (
 	"github.com/boyvinall/dirtygit/scanner"
 )
 
+func newScanSpinner() cspinner.Model {
+	return cspinner.New(
+		cspinner.WithSpinner(cspinner.MiniDot),
+		cspinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("159"))),
+	)
+}
+
 // tickCmd schedules the next scan progress poll.
 func tickCmd() tea.Cmd {
 	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
@@ -30,10 +37,7 @@ func Run(config *scanner.Config) error {
 		scanResultCh:     make(chan scanResult, 1),
 		diffMode:         diffModeWorktree,
 		diffNeedsRefresh: true,
-		scanSpinner: cspinner.New(
-			cspinner.WithSpinner(cspinner.MiniDot),
-			cspinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("159"))),
-		),
+		scanSpinner:      newScanSpinner(),
 	}
 	m.statusTable = newStatusTable()
 	m.branchTable = newBranchTable()
@@ -63,10 +67,7 @@ func (m *model) beginScan() tea.Cmd {
 	m.scanProgress = scanner.ScanProgress{}
 	m.scanProgressCh = make(chan scanner.ScanProgress, 256)
 	progCh := m.scanProgressCh
-	m.scanSpinner = cspinner.New(
-		cspinner.WithSpinner(cspinner.MiniDot),
-		cspinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("159"))),
-	)
+	m.scanSpinner = newScanSpinner()
 	go func() {
 		mgs, err := scanner.ScanWithProgress(m.config, func(p scanner.ScanProgress) {
 			select {

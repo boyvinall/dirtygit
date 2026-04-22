@@ -10,6 +10,21 @@ import (
 	"github.com/boyvinall/dirtygit/scanner"
 )
 
+// placeCenteredDimModal centers content on the full terminal with a dim tiled backdrop.
+func (m *model) placeCenteredDimModal(content string) string {
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content,
+		lipgloss.WithWhitespaceChars("░"),
+		lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
+		lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
+}
+
+// placeCenteredPlain centers content on the full terminal with a simple space fill (e.g. errors).
+func (m *model) placeCenteredPlain(content string) string {
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content,
+		lipgloss.WithWhitespaceChars(" "),
+		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
+}
+
 // helpKey reports whether a key toggles the help overlay.
 func helpKey(msg tea.KeyMsg) bool {
 	switch msg.String() {
@@ -130,7 +145,7 @@ func (m *model) helpPanel() string {
 		"",
 		"From help: Esc, ?, or h closes · q / Ctrl+C quits the app.",
 	}
-	body := "Keyboard shortcuts\n\n" + strings.Join(lines, "\n")
+	body := strings.Join(lines, "\n")
 	w, h := m.width, m.height
 	if h < 1 {
 		h = minTermHeight
@@ -140,10 +155,9 @@ func (m *model) helpPanel() string {
 	padded := lipgloss.Place(innerW, innerH, lipgloss.Left, lipgloss.Top, body,
 		lipgloss.WithWhitespaceChars(" "),
 		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("39")).
-		Render(padded)
+	// Match other panes: title sits in the top border (see framedBlock).
+	// Use paneRepo so Diff's framedBlock title override (worktree/staged) does not replace this title.
+	return m.framedBlock(paneRepo, w, h, "Keyboard shortcuts", padded)
 }
 
 // renderWhyInclusionOverlay shows why the selected repository appears in the list.
@@ -156,18 +170,12 @@ func (m *model) renderWhyInclusionOverlay() string {
 	innerW := max(8, boxW-6)
 	if repo == "" {
 		box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("39")).Width(boxW).Padding(1, 2).Render("No repository selected.")
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
-			lipgloss.WithWhitespaceChars("░"),
-			lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
-			lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
+		return m.placeCenteredDimModal(box)
 	}
 	rs, ok := m.repositories[repo]
 	if !ok {
 		box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("39")).Width(boxW).Padding(1, 2).Render("No status data for this path.")
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
-			lipgloss.WithWhitespaceChars("░"),
-			lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
-			lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
+		return m.placeCenteredDimModal(box)
 	}
 	lines := scanner.RepoInclusionReasons(rs)
 	if len(lines) == 0 {
@@ -185,10 +193,7 @@ func (m *model) renderWhyInclusionOverlay() string {
 		Width(boxW).
 		Padding(1, 2).
 		Render(inner)
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
-		lipgloss.WithWhitespaceChars("░"),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
-		lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
+	return m.placeCenteredDimModal(box)
 }
 
 // renderDeleteRepoConfirmOverlay asks whether to recursively delete the selected repository directory.
@@ -201,10 +206,7 @@ func (m *model) renderDeleteRepoConfirmOverlay() string {
 	innerW := max(8, boxW-6)
 	if repo == "" {
 		box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("39")).Width(boxW).Padding(1, 2).Render("No repository selected.")
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
-			lipgloss.WithWhitespaceChars("░"),
-			lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
-			lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
+		return m.placeCenteredDimModal(box)
 	}
 	pathLine := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render(truncateASCII(repo, innerW))
 	t := lipgloss.NewStyle().Bold(true).Render("Delete this directory recursively?")
@@ -230,10 +232,7 @@ func (m *model) renderDeleteRepoConfirmOverlay() string {
 		Width(boxW).
 		Padding(1, 2).
 		Render(inner)
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
-		lipgloss.WithWhitespaceChars("░"),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
-		lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
+	return m.placeCenteredDimModal(box)
 }
 
 // framedBlock wraps pane body content in a titled border block.
@@ -374,10 +373,7 @@ func (m *model) renderHelpOverlay() string {
 // renderScanOverlay centers and draws the scanning modal.
 func (m *model) renderScanOverlay() string {
 	popup := m.scanProgressPopup()
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, popup,
-		lipgloss.WithWhitespaceChars("░"),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
-		lipgloss.WithWhitespaceBackground(lipgloss.Color("235")))
+	return m.placeCenteredDimModal(popup)
 }
 
 // renderZoomedPane draws only the active pane in fullscreen mode.
@@ -424,9 +420,7 @@ func (m *model) renderErrorOverlay() string {
 		Width(errW).
 		Padding(1, 2).
 		Render("Error\n\n" + m.err.Error() + "\n\n(s to rescan, q to quit)")
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, errBox,
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
+	return m.placeCenteredPlain(errBox)
 }
 
 // View renders the full terminal UI for the current model state.

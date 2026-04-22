@@ -5,6 +5,9 @@ scandirs:
   # this will have env vars expanded
   include:
     - $HOME/apps
+    - $HOME/code
+    - $HOME/dev
+    - $HOME/work
 
   # a list of specific directories to exclude from the scan
   # this will have env vars expanded

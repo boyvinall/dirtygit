@@ -1,12 +1,11 @@
 package scanner
 
 import (
+	"fmt"
 	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 // haveMergeBase reports whether git finds a common ancestor for the two commits.
@@ -20,7 +19,7 @@ func haveMergeBase(d, commitA, commitB string) (bool, error) {
 	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
 		return false, nil
 	}
-	return false, errors.Wrap(err, "git merge-base")
+	return false, fmt.Errorf("git merge-base: %w", err)
 }
 
 // listLocalBranches returns all refs/heads sorted by name. When detached is false,
@@ -43,11 +42,11 @@ func listLocalBranches(d, currentName string, detached bool) ([]LocalBranchRef, 
 		}
 		parts := strings.Split(line, "\t")
 		if len(parts) != 3 {
-			return nil, errors.Errorf("unexpected for-each-ref line: %q", line)
+			return nil, fmt.Errorf("unexpected for-each-ref line: %q", line)
 		}
 		unix, err := strconv.ParseInt(parts[2], 10, 64)
 		if err != nil {
-			return nil, errors.Wrapf(err, "parse committer date for branch %q", parts[0])
+			return nil, fmt.Errorf("parse committer date for branch %q: %w", parts[0], err)
 		}
 		name := parts[0]
 		cur := !detached && name == currentName
@@ -66,7 +65,7 @@ func runGit(d string, args ...string) (string, error) {
 	cmd.Dir = d
 	out, err := cmd.Output()
 	if err != nil {
-		return "", errors.Wrap(err, d)
+		return "", fmt.Errorf("%s: %w", d, err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -103,7 +102,7 @@ func refTip(d, ref string) (hash string, unix int64, exists bool, err error) {
 	}
 	parts := strings.Fields(out)
 	if len(parts) != 2 {
-		return "", 0, false, errors.Errorf("unable to parse commit metadata for ref %s", ref)
+		return "", 0, false, fmt.Errorf("unable to parse commit metadata for ref %s", ref)
 	}
 	unix, err = strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {

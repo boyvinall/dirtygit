@@ -210,17 +210,7 @@ branches:
 
 func TestStatusForRepo(t *testing.T) {
 	tmp := t.TempDir()
-	for _, argv := range [][]string{
-		{"git", "init"},
-		{"git", "config", "user.email", "t@example.com"},
-		{"git", "config", "user.name", "test"},
-	} {
-		cmd := exec.Command(argv[0], argv[1:]...)
-		cmd.Dir = tmp
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("%v: %s", err, out)
-		}
-	}
+	gitMinimalInit(t, tmp)
 	if err := os.WriteFile(filepath.Join(tmp, "dirty.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}

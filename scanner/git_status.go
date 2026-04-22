@@ -2,33 +2,13 @@ package scanner
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"os/exec"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
-	"github.com/pkg/errors"
 )
-
-// GoGitStatus uses go-git package to determine the git status for a directory.
-func GoGitStatus(d string) (git.Status, error) {
-	r, err := git.PlainOpen(d)
-	if err != nil {
-		return nil, errors.Wrap(err, d)
-	}
-
-	wt, err := r.Worktree()
-	if err != nil {
-		return nil, errors.Wrap(err, d)
-	}
-
-	st, err := wt.Status()
-	if err != nil {
-		return nil, errors.Wrap(err, d)
-	}
-
-	return st, nil
-}
 
 func ParsePorcelainStatus(r io.Reader) (PorcelainStatus, error) {
 	st := PorcelainStatus{}
@@ -48,7 +28,7 @@ func ParsePorcelainStatus(r io.Reader) (PorcelainStatus, error) {
 
 func parsePorcelainLine(s string) (PorcelainEntry, error) {
 	if len(s) < 4 || s[2] != ' ' {
-		return PorcelainEntry{}, errors.Errorf("unable to parse status line: %q", s)
+		return PorcelainEntry{}, fmt.Errorf("unable to parse status line: %q", s)
 	}
 
 	entry := PorcelainEntry{
@@ -65,7 +45,7 @@ func parsePorcelainLine(s string) (PorcelainEntry, error) {
 	}
 
 	if entry.Path == "" {
-		return PorcelainEntry{}, errors.Errorf("unable to parse file path from status line: %q", s)
+		return PorcelainEntry{}, fmt.Errorf("unable to parse file path from status line: %q", s)
 	}
 
 	return entry, nil
@@ -77,20 +57,20 @@ func GitStatus(d string) (PorcelainStatus, error) {
 	cmd.Dir = d
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return PorcelainStatus{}, errors.Wrap(err, d)
+		return PorcelainStatus{}, fmt.Errorf("%s: %w", d, err)
 	}
 
 	if err := cmd.Start(); err != nil {
-		return PorcelainStatus{}, errors.Wrap(err, d)
+		return PorcelainStatus{}, fmt.Errorf("%s: %w", d, err)
 	}
 
 	st, err := ParsePorcelainStatus(stdout)
 	if err != nil {
-		return PorcelainStatus{}, errors.Wrap(err, d)
+		return PorcelainStatus{}, fmt.Errorf("%s: %w", d, err)
 	}
 
 	if err := cmd.Wait(); err != nil {
-		return PorcelainStatus{}, errors.Wrap(err, d)
+		return PorcelainStatus{}, fmt.Errorf("%s: %w", d, err)
 	}
 
 	return st, nil

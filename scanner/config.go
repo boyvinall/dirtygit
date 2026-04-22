@@ -7,17 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
-
-func DumpConfig(config *Config) error {
-	b, err := yaml.Marshal(&config)
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(b))
-	return nil
-}
 
 func ParseConfigFile(filename, defaultConfig string) (*Config, error) {
 	b, err := os.ReadFile(filepath.Clean(filename))
