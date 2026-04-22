@@ -204,6 +204,7 @@ func (m *model) syncViewports() {
 	m.refreshDiffContent()
 	m.diffVP.SetContent(m.diffContent)
 	m.logVP.SetContent(m.logBuf.String())
+	m.clampRepoScroll(repoBody)
 }
 
 // sortedRepoPaths returns repository paths in stable alphabetical order.

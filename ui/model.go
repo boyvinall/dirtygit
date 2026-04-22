@@ -82,10 +82,11 @@ type model struct {
 	width  int
 	height int
 
-	repositories scanner.MultiGitStatus
-	repoList     []string
-	cursor       int
-	focus        pane
+	repositories  scanner.MultiGitStatus
+	repoList      []string
+	repoScrollTop int // first visible repo index when the list exceeds pane height
+	cursor        int
+	focus         pane
 
 	statusTable        table.Model
 	statusPaths        []string

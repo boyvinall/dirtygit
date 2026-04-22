@@ -105,13 +105,14 @@ func (m *model) handleMousePaneLineSelect(msg tea.MouseMsg) bool {
 			return false
 		}
 		lineIdx := relY - 1
-		if len(m.repoList) == 0 || lineIdx >= len(m.repoList) {
+		global := m.repoScrollTop + lineIdx
+		if len(m.repoList) == 0 || global < 0 || global >= len(m.repoList) {
 			return false
 		}
-		if lineIdx == m.cursor {
+		if global == m.cursor {
 			return true
 		}
-		m.cursor = lineIdx
+		m.cursor = global
 		m.statusFileSelected = false
 		m.refreshStatusContent()
 		m.diffNeedsRefresh = true

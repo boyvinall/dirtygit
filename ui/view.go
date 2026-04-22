@@ -185,6 +185,41 @@ func (m *model) framedStatusBranchesRow(outerH int, statusBody, branchesBody str
 	return lipgloss.JoinHorizontal(lipgloss.Top, statusBlock, branchesBlock)
 }
 
+// clampRepoScroll keeps repoScrollTop in range and ensures the cursor row is visible.
+func (m *model) clampRepoScroll(innerH int) {
+	n := len(m.repoList)
+	if innerH < 1 || n == 0 {
+		m.repoScrollTop = 0
+		return
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	if m.cursor >= n {
+		m.cursor = n - 1
+	}
+	if n <= innerH {
+		m.repoScrollTop = 0
+		return
+	}
+	maxTop := n - innerH
+	if m.repoScrollTop > maxTop {
+		m.repoScrollTop = maxTop
+	}
+	if m.repoScrollTop < 0 {
+		m.repoScrollTop = 0
+	}
+	if m.cursor < m.repoScrollTop {
+		m.repoScrollTop = m.cursor
+	}
+	if m.cursor >= m.repoScrollTop+innerH {
+		m.repoScrollTop = m.cursor - innerH + 1
+	}
+	if m.repoScrollTop > maxTop {
+		m.repoScrollTop = maxTop
+	}
+}
+
 // repoListView renders the repository list with current selection styling.
 func (m *model) repoListView(innerH int) string {
 	selFocused := lipgloss.NewStyle().Background(lipgloss.Color("42")).Foreground(lipgloss.Color("0"))
@@ -192,11 +227,24 @@ func (m *model) repoListView(innerH int) string {
 	if len(m.repoList) == 0 && !m.scanning {
 		return "(no dirty or diverged repositories)"
 	}
+	n := len(m.repoList)
+	start := m.repoScrollTop
+	if start < 0 {
+		start = 0
+	}
+	if start > n {
+		start = n
+	}
+	end := start + innerH
+	if end > n {
+		end = n
+	}
 	var b strings.Builder
-	for i, path := range m.repoList {
-		if i > 0 {
+	for i := start; i < end; i++ {
+		if i > start {
 			b.WriteString("\n")
 		}
+		path := m.repoList[i]
 		if i == m.cursor {
 			if m.focus == paneRepo {
 				b.WriteString(selFocused.Render(path))

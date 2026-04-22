@@ -113,6 +113,42 @@ func TestHandleArrowKeyRepoNavigation(t *testing.T) {
 	}
 }
 
+// TestRepoListScrollFollowsCursor ensures moving past the last visible row scrolls the repo pane.
+func TestRepoListScrollFollowsCursor(t *testing.T) {
+	m := newTestModel()
+	m.focus = paneRepo
+	m.repoList = []string{"/0", "/1", "/2", "/3", "/4", "/5", "/6", "/7", "/8", "/9"}
+	m.cursor = 0
+	m.repoScrollTop = 0
+	const innerH = 3
+	for i := 0; i < 5; i++ {
+		_, _, handled := m.handleArrowKey(tea.KeyMsg{Type: tea.KeyDown})
+		if !handled {
+			t.Fatalf("down step %d not handled", i)
+		}
+		m.clampRepoScroll(innerH)
+	}
+	if m.cursor != 5 {
+		t.Fatalf("cursor=%d want 5", m.cursor)
+	}
+	if m.repoScrollTop != 3 {
+		t.Fatalf("repoScrollTop=%d want 3 (viewport shows indices 3..5)", m.repoScrollTop)
+	}
+	for i := 0; i < 3; i++ {
+		_, _, handled := m.handleArrowKey(tea.KeyMsg{Type: tea.KeyUp})
+		if !handled {
+			t.Fatalf("up step %d not handled", i)
+		}
+		m.clampRepoScroll(innerH)
+	}
+	if m.cursor != 2 {
+		t.Fatalf("cursor=%d want 2", m.cursor)
+	}
+	if m.cursor < m.repoScrollTop || m.cursor >= m.repoScrollTop+innerH {
+		t.Fatalf("cursor=%d not in visible window [%d,%d)", m.cursor, m.repoScrollTop, m.repoScrollTop+innerH)
+	}
+}
+
 // TestHandleArrowKeyDiffModeToggle verifies staged/worktree diff switching.
 func TestHandleArrowKeyDiffModeToggle(t *testing.T) {
 	m := newTestModel()
