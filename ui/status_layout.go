@@ -71,6 +71,49 @@ func panelOuter(body int) int {
 	return body + 2 // top border (with title) + body + bottom border
 }
 
+// paneAtTerminalCell maps a 0-based terminal cell (from Bubble Tea mouse events)
+// to the pane that contains it. It mirrors renderMainStack / renderZoomedPane geometry.
+func (m *model) paneAtTerminalCell(x, y int) (pane, bool) {
+	if m.width <= 0 || m.height < minTermHeight {
+		return paneRepo, false
+	}
+	if x < 0 || y < 0 || x >= m.width || y >= m.height {
+		return paneRepo, false
+	}
+	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
+	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
+		return paneRepo, false
+	}
+	if m.zoomed {
+		return m.zoomTarget, true
+	}
+	repoOuter := panelOuter(repoBody)
+	statusOuter := panelOuter(statusBody)
+	diffOuter := panelOuter(diffBody)
+	logOuter := panelOuter(logBody)
+
+	if y < repoOuter {
+		return paneRepo, true
+	}
+	y -= repoOuter
+	if y < statusOuter {
+		statusW, _ := m.statusBranchesOuterWidths(m.width)
+		if x < statusW {
+			return paneStatus, true
+		}
+		return paneBranches, true
+	}
+	y -= statusOuter
+	if y < diffOuter {
+		return paneDiff, true
+	}
+	y -= diffOuter
+	if y < logOuter {
+		return paneLog, true
+	}
+	return paneRepo, false
+}
+
 // innerWidth returns content width available inside pane borders.
 func (m *model) innerWidth() int {
 	w := m.width - 4

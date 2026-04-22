@@ -109,6 +109,7 @@ func (m *model) scanProgressPopup() string {
 // helpPanel renders keyboard shortcut documentation in a frame that fills the terminal.
 func (m *model) helpPanel() string {
 	lines := []string{
+		"Click        Focus a pane; in Repositories or Status (when focused), select a row",
 		"Tab          Focus next pane (Repositories → Status → Branches → Diff → Log); when zoomed, cycle pane",
 		"Shift+Tab    Focus previous pane; when zoomed, cycle pane backward",
 		"Enter        Zoom focused pane to fullscreen; Enter again to restore layout",

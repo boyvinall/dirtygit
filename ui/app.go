@@ -39,7 +39,7 @@ func Run(config *scanner.Config) error {
 	m.branchTable = newBranchTable()
 	log.SetOutput(m.logBuf)
 
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		return err
 	}

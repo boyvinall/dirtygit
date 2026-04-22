@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/go-git/go-git/v5"
 
 	"github.com/boyvinall/dirtygit/scanner"
@@ -26,6 +28,98 @@ func newTestModel() *model {
 	m.logVP = viewport.New(20, 5)
 	m.diffVP = viewport.New(20, 5)
 	return m
+}
+
+// TestPaneAtTerminalCell maps screen coordinates to panes for the main layout.
+func TestPaneAtTerminalCell(t *testing.T) {
+	m := newTestModel()
+	m.width = 100
+	m.height = 30
+	m.repoList = []string{"a", "b", "c"}
+
+	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
+	repoOuter := panelOuter(repoBody)
+	statusOuter := panelOuter(statusBody)
+	diffOuter := panelOuter(diffBody)
+	logOuter := panelOuter(logBody)
+	statusW, _ := m.statusBranchesOuterWidths(m.width)
+
+	tests := []struct {
+		x, y int
+		want pane
+		ok   bool
+	}{
+		{0, 0, paneRepo, true},
+		{99, repoOuter - 1, paneRepo, true},
+		{0, repoOuter, paneStatus, true},
+		{statusW - 1, repoOuter, paneStatus, true},
+		{statusW, repoOuter, paneBranches, true},
+		{0, repoOuter + statusOuter, paneDiff, true},
+		{0, repoOuter + statusOuter + diffOuter, paneLog, true},
+		{0, repoOuter + statusOuter + diffOuter + logOuter - 1, paneLog, true},
+		{-1, 0, paneRepo, false},
+		{0, m.height, paneRepo, false},
+	}
+	for _, tc := range tests {
+		got, ok := m.paneAtTerminalCell(tc.x, tc.y)
+		if ok != tc.ok || got != tc.want {
+			t.Fatalf("paneAtTerminalCell(%d,%d) = (%v,%v), want (%v,%v) repoOuter=%d statusOuter=%d diffOuter=%d logOuter=%d statusW=%d",
+				tc.x, tc.y, got, ok, tc.want, tc.ok, repoOuter, statusOuter, diffOuter, logOuter, statusW)
+		}
+	}
+
+	m.zoomed = true
+	m.zoomTarget = paneDiff
+	if p, ok := m.paneAtTerminalCell(5, 10); !ok || p != paneDiff {
+		t.Fatalf("zoomed paneAtTerminalCell = (%v,%v), want (paneDiff,true)", p, ok)
+	}
+}
+
+// TestMouseFocusClickUpdatesFocus exercises left-click pane focusing via Update.
+func TestMouseFocusClickUpdatesFocus(t *testing.T) {
+	m := newTestModel()
+	m.width = 100
+	m.height = 30
+	m.repoList = []string{"a", "b", "c"}
+	m.focus = paneRepo
+
+	rb, sb, _, _ := m.layoutBodies()
+	click := tea.MouseMsg{
+		X:      0,
+		Y:      panelOuter(rb) + panelOuter(sb)/2,
+		Button: tea.MouseButtonLeft,
+		Action: tea.MouseActionPress,
+	}
+
+	next, _ := m.Update(click)
+	mm, ok := next.(*model)
+	if !ok {
+		t.Fatalf("Update should return *model, got %T", next)
+	}
+	if mm.focus != paneStatus {
+		t.Fatalf("after click on status area, focus = %v, want paneStatus", mm.focus)
+	}
+
+	mm.err = fmt.Errorf("boom")
+	if _, _ = mm.Update(click); mm.focus != paneStatus {
+		t.Fatal("click should not change focus while error overlay is active")
+	}
+	mm.err = nil
+
+	// Same pane: should fall through without breaking focus
+	if _, _ = mm.Update(click); mm.focus != paneStatus {
+		t.Fatalf("click same pane should keep focus=%v", mm.focus)
+	}
+
+	wheel := tea.MouseMsg{
+		X:      click.X,
+		Y:      click.Y,
+		Button: tea.MouseButtonWheelDown,
+		Action: tea.MouseActionPress,
+	}
+	if _, _ = mm.Update(wheel); mm.focus != paneStatus {
+		t.Fatal("wheel should not retarget focus")
+	}
 }
 
 // TestLayoutBodies verifies valid pane body sizes on normal terminals.

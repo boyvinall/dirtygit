@@ -351,6 +351,28 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleMouseFocusClick moves keyboard focus to the pane under the cursor on
+// left-button press. Returns true when the event is consumed (focus changed);
+// otherwise the caller should forward the mouse message as usual.
+func (m *model) handleMouseFocusClick(msg tea.MouseMsg) bool {
+	if m.helpOpen || m.scanning || m.err != nil || m.height < minTermHeight {
+		return false
+	}
+	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {
+		return false
+	}
+	p, ok := m.paneAtTerminalCell(msg.X, msg.Y)
+	if !ok {
+		return false
+	}
+	if p == m.focus {
+		return false
+	}
+	m.focus = p
+	m.syncViewports()
+	return true
+}
+
 // handlePassiveInput forwards non-command input to focused interactive widgets.
 func (m *model) handlePassiveInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
@@ -400,6 +422,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+
+	case tea.MouseMsg:
+		if m.handleMouseFocusClick(msg) {
+			return m, nil
+		}
+		if m.handleMousePaneLineSelect(msg) {
+			return m, nil
+		}
+		return m.handlePassiveInput(msg)
 	}
 
 	return m.handlePassiveInput(msg)
