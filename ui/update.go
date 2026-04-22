@@ -144,8 +144,9 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 		}
 		if m.focus == paneStatus && m.statusFileSelected {
 			m.statusFileSelected = false
-			m.statusTable.Blur()
 			m.diffNeedsRefresh = true
+			// syncViewports can no-op before the first WindowSizeMsg; still update the table widget.
+			m.applyStatusTableFocusAndStyles()
 			m.syncViewports()
 			return m, nil, true
 		}

@@ -116,11 +116,6 @@ func (m *model) syncViewports() {
 	m.statusTable.SetWidth(statusInnerW)
 	m.statusTable.SetHeight(statusBody)
 	m.statusTable.SetColumns(statusColumns(statusInnerW))
-	if m.focus == paneStatus && m.statusFileSelected {
-		m.statusTable.Focus()
-	} else {
-		m.statusTable.Blur()
-	}
 	m.logVP.Width = m.innerWidth()
 	m.logVP.Height = logBody
 	m.diffVP.Width = m.innerWidth()
@@ -150,10 +145,40 @@ func newStatusTable() table.Model {
 		table.WithFocused(false),
 		table.WithHeight(6),
 	)
-	styles := table.DefaultStyles()
-	styles.Selected = styles.Selected.Bold(true)
-	t.SetStyles(styles)
+	t.SetStyles(statusTableStyles(false))
 	return t
+}
+
+// statusTableStyles returns table styles for the status pane. The bubbles table
+// always applies Selected to the cursor row; it does not dim that style when
+// Blur() is called, so we swap Selected to match repo-list behavior (green when
+// this pane owns selection, grey when not).
+func statusTableStyles(selectionFocused bool) table.Styles {
+	s := table.DefaultStyles()
+	if selectionFocused {
+		s.Selected = lipgloss.NewStyle().
+			Bold(true).
+			Background(lipgloss.Color("42")).
+			Foreground(lipgloss.Color("0"))
+	} else {
+		s.Selected = lipgloss.NewStyle().
+			Bold(true).
+			Background(lipgloss.Color("248")).
+			Foreground(lipgloss.Color("0"))
+	}
+	return s
+}
+
+// applyStatusTableFocusAndStyles syncs table focus and cursor-row styling with
+// whether the status pane is actively selecting a file.
+func (m *model) applyStatusTableFocusAndStyles() {
+	selectionFocused := m.focus == paneStatus && m.statusFileSelected
+	if selectionFocused {
+		m.statusTable.Focus()
+	} else {
+		m.statusTable.Blur()
+	}
+	m.statusTable.SetStyles(statusTableStyles(selectionFocused))
 }
 
 // newBranchTable builds the branch pane table with default styling.
@@ -331,12 +356,12 @@ func (m *model) refreshStatusContent() {
 	m.statusPaths = paths
 	if len(paths) == 0 {
 		m.statusFileSelected = false
-		m.statusTable.Blur()
 	}
 	m.statusTable.SetRows(rows)
 	if len(rows) > 0 && m.statusTable.Cursor() >= len(rows) {
 		m.statusTable.SetCursor(len(rows) - 1)
 	}
+	m.applyStatusTableFocusAndStyles()
 }
 
 // selectedStatusPath returns the currently highlighted file path.
