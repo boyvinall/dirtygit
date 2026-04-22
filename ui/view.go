@@ -106,7 +106,7 @@ func (m *model) scanProgressPopup() string {
 		Render(body)
 }
 
-// helpPanel renders keyboard shortcut documentation.
+// helpPanel renders keyboard shortcut documentation in a frame that fills the terminal.
 func (m *model) helpPanel() string {
 	lines := []string{
 		"Tab          Focus next pane (Repositories → Status → Branches → Diff → Log); when zoomed, cycle pane",
@@ -114,23 +114,29 @@ func (m *model) helpPanel() string {
 		"Enter        Zoom focused pane to fullscreen; Enter again to restore layout",
 		"Esc          Exit zoom (when zoomed), or clear Status file selection",
 		"↑ / ↓        Move repo selection or scroll Status / Diff / Log",
-		"← / →        In Diff pane, switch Worktree/Staged diff mode",
-		"a  r         In Status pane with a file row selected: git add / git reset (unstage) that path",
+		"← / →        In Status or Diff pane, switch Worktree/Staged diff mode",
+		"a  r         With a status file row selected (Status or Diff pane): git add / git reset (unstage) that path",
 		"s            Scan / rescan repositories",
-		"e            Open selected repository in VS Code (code)",
+		"e            Open selected repository (edit.command in config)",
 		"q  Ctrl+C    Quit",
 		"?  h         Show this help",
 		"",
 		"Esc, ?, or h closes this window.",
 	}
-	content := strings.Join(lines, "\n")
-	boxW := min(m.width-4, 72)
+	body := "Keyboard shortcuts\n\n" + strings.Join(lines, "\n")
+	w, h := m.width, m.height
+	if h < 1 {
+		h = minTermHeight
+	}
+	innerW := max(1, w-2)
+	innerH := max(1, h-2)
+	padded := lipgloss.Place(innerW, innerH, lipgloss.Left, lipgloss.Top, body,
+		lipgloss.WithWhitespaceChars(" "),
+		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("39")).
-		Width(boxW).
-		Padding(1, 2).
-		Render("Keyboard shortcuts\n\n" + content)
+		Render(padded)
 }
 
 // framedBlock wraps pane body content in a titled border block.
@@ -149,7 +155,11 @@ func (m *model) framedBlock(p pane, outerW, outerH int, title string, body strin
 		MaxHeight(innerH).
 		Render(body)
 
-	titleText := " " + m.sectionTitle(p, title) + " "
+	titleRendered := m.sectionTitle(p, title)
+	if p == paneDiff {
+		titleRendered = m.diffPaneBorderTitle()
+	}
+	titleText := " " + titleRendered + " "
 	fillW := max(0, innerW-lipgloss.Width(titleText))
 	top := borderStyle.Render(border.TopLeft) +
 		titleText +
@@ -201,16 +211,9 @@ func (m *model) repoListView(innerH int) string {
 		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
 }
 
-// renderHelpOverlay centers and draws the help panel.
+// renderHelpOverlay draws the help panel edge-to-edge in the terminal.
 func (m *model) renderHelpOverlay() string {
-	help := m.helpPanel()
-	h := m.height
-	if h < 1 {
-		h = minTermHeight
-	}
-	return lipgloss.Place(m.width, h, lipgloss.Center, lipgloss.Center, help,
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
+	return m.helpPanel()
 }
 
 // renderScanOverlay centers and draws the scanning modal.
@@ -232,7 +235,7 @@ func (m *model) renderZoomedPane(repoBody int) string {
 	case paneBranches:
 		return m.framedBlock(paneBranches, m.width, m.height, "Branches", m.branchTable.View())
 	case paneDiff:
-		return m.framedBlock(paneDiff, m.width, m.height, "Diff ("+m.diffModeLabel()+")", m.diffVP.View())
+		return m.framedBlock(paneDiff, m.width, m.height, "Diff", m.diffVP.View())
 	case paneLog:
 		m.logVP.SetContent(m.logBuf.String())
 		return m.framedBlock(paneLog, m.width, m.height, "Log", m.logVP.View())
@@ -250,7 +253,7 @@ func (m *model) renderMainStack(repoBody, statusBody, diffBody, logBody int) str
 
 	repoBlock := m.framedBlock(paneRepo, m.width, repoOuter, "Repositories", m.repoListView(repoBody))
 	statusRow := m.framedStatusBranchesRow(statusOuter, m.statusTable.View(), m.branchTable.View())
-	diffBlock := m.framedBlock(paneDiff, m.width, diffOuter, "Diff ("+m.diffModeLabel()+")", m.diffVP.View())
+	diffBlock := m.framedBlock(paneDiff, m.width, diffOuter, "Diff", m.diffVP.View())
 	m.logVP.SetContent(m.logBuf.String())
 	logBlock := m.framedBlock(paneLog, m.width, logOuter, "Log", m.logVP.View())
 

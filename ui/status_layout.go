@@ -203,8 +203,8 @@ func statusColumns(totalWidth int) []table.Column {
 	horizontalPad := 2 * cols
 	pathWidth := max(1, totalWidth-stagedWidth-worktreeWidth-horizontalPad)
 	return []table.Column{
-		{Title: "Staged", Width: stagedWidth},
 		{Title: "Worktree", Width: worktreeWidth},
+		{Title: "Staged", Width: stagedWidth},
 		{Title: "Path", Width: pathWidth},
 	}
 }
@@ -233,23 +233,31 @@ func branchRowColumns(totalWidth int) []table.Column {
 	}
 }
 
-// branchRemoteSummary compresses local vs remote tips for the current branch row.
+// branchRemoteSummary compresses local vs remote tips for the checked-out branch
+// when BranchStatus.Locations is populated (e.g. no local heads listed).
 func branchRemoteSummary(b scanner.BranchStatus) string {
 	if b.Detached || len(b.Locations) == 0 {
 		return "-"
 	}
+	return branchRemoteSummaryFromLocations(b.Locations)
+}
+
+func branchRemoteSummaryFromLocations(locations []scanner.BranchLocation) string {
+	if len(locations) == 0 {
+		return "-"
+	}
 	var local *scanner.BranchLocation
-	for i := range b.Locations {
-		if b.Locations[i].Name == "local" {
-			local = &b.Locations[i]
+	for i := range locations {
+		if locations[i].Name == "local" {
+			local = &locations[i]
 			break
 		}
 	}
 	if local == nil || !local.Exists {
 		return "-"
 	}
-	parts := make([]string, 0, len(b.Locations))
-	for _, loc := range b.Locations {
+	parts := make([]string, 0, len(locations))
+	for _, loc := range locations {
 		if loc.Name == "local" {
 			continue
 		}
@@ -258,9 +266,18 @@ func branchRemoteSummary(b scanner.BranchStatus) string {
 			continue
 		}
 		if loc.TipHash != local.TipHash {
-			if loc.UniqueCount > 0 {
-				parts = append(parts, fmt.Sprintf("%s +%d", loc.Name, loc.UniqueCount))
-			} else {
+			if loc.HistoriesUnrelated {
+				parts = append(parts, loc.Name+": differs")
+				continue
+			}
+			switch {
+			case loc.Incoming > 0 && loc.Outgoing > 0:
+				parts = append(parts, fmt.Sprintf("%s +%d-%d", loc.Name, loc.Incoming, loc.Outgoing))
+			case loc.Incoming > 0:
+				parts = append(parts, fmt.Sprintf("%s +%d", loc.Name, loc.Incoming))
+			case loc.Outgoing > 0:
+				parts = append(parts, fmt.Sprintf("%s -%d", loc.Name, loc.Outgoing))
+			default:
 				parts = append(parts, loc.Name+": differs")
 			}
 			continue
@@ -305,6 +322,10 @@ func (m *model) refreshBranchContent(totalWidth int) {
 		rows := make([]table.Row, 0, 1+len(locals))
 		rows = append(rows, table.Row{"(detached HEAD)", shortHash(branch.Branch), "-", "-"})
 		for _, lb := range locals {
+			always := m.config != nil && m.config.AlwaysListBranch(lb.Name)
+			if m.config != nil && m.config.ShouldHideLocalOnlyBranch(lb) && !always {
+				continue
+			}
 			rows = append(rows, table.Row{
 				lb.Name,
 				shortHash(lb.TipHash),
@@ -337,16 +358,23 @@ func (m *model) refreshBranchContent(totalWidth int) {
 	sortLocalBranchesByTipNewestFirst(locals)
 	rows := make([]table.Row, 0, len(locals))
 	for _, lb := range locals {
-		remote := "-"
-		if lb.Current {
-			remote = branchRemoteSummary(branch)
+		always := m.config != nil && m.config.AlwaysListBranch(lb.Name)
+		if m.config != nil && m.config.ShouldHideLocalOnlyBranch(lb) && !always {
+			continue
 		}
+		if !lb.HasTipMismatchAcrossRemotes() && !always {
+			continue
+		}
+		remote := branchRemoteSummaryFromLocations(lb.Locations)
 		rows = append(rows, table.Row{
 			lb.Name,
 			shortHash(lb.TipHash),
 			relativeTime(lb.TipUnix),
 			remote,
 		})
+	}
+	if len(rows) == 0 {
+		rows = []table.Row{{"(in sync with remotes)", "-", "-", "-"}}
 	}
 	m.branchTable.SetRows(rows)
 	m.branchTable.SetHeight(max(4, len(rows)+1))
@@ -393,8 +421,8 @@ func (m *model) refreshStatusContent() {
 				path = fmt.Sprintf("%s -> %s", entry.OriginalPath, entry.Path)
 			}
 			rows = append(rows, table.Row{
-				statusCodeLabel(entry.Staging),
 				statusCodeLabel(entry.Worktree),
+				statusCodeLabel(entry.Staging),
 				path,
 			})
 			paths = append(paths, entry.Path)
@@ -409,8 +437,8 @@ func (m *model) refreshStatusContent() {
 		for _, path := range paths {
 			status := st.Status[path]
 			rows = append(rows, table.Row{
-				statusCodeLabel(status.Staging),
 				statusCodeLabel(status.Worktree),
+				statusCodeLabel(status.Staging),
 				path,
 			})
 			paths = append(paths, path)

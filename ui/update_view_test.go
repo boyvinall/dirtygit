@@ -56,6 +56,15 @@ func TestHandleHelpOverlayKey(t *testing.T) {
 	if m.helpOpen {
 		t.Fatal("help overlay should close on help key")
 	}
+
+	m.helpOpen = true
+	_, cmd := m.handleHelpOverlayKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if cmd == nil {
+		t.Fatal("help overlay should return quit command on q")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatalf("help overlay q should return QuitMsg, got %T", cmd())
+	}
 }
 
 // TestHandleCommandKeyFocusAndZoom checks tab focus and zoom toggling behavior.
@@ -121,6 +130,23 @@ func TestHandleArrowKeyDiffModeToggle(t *testing.T) {
 	}
 }
 
+// TestHandleArrowKeyStatusPaneDiffModeToggle verifies Status pane uses the same ←/→ diff mode as Diff.
+func TestHandleArrowKeyStatusPaneDiffModeToggle(t *testing.T) {
+	m := newTestModel()
+	m.focus = paneStatus
+	m.diffMode = diffModeWorktree
+
+	_, _, handled := m.handleArrowKey(tea.KeyMsg{Type: tea.KeyRight})
+	if !handled || m.diffMode != diffModeStaged {
+		t.Fatalf("right from status should switch diff mode to staged, got mode=%v handled=%v", m.diffMode, handled)
+	}
+
+	_, _, handled = m.handleArrowKey(tea.KeyMsg{Type: tea.KeyLeft})
+	if !handled || m.diffMode != diffModeWorktree {
+		t.Fatalf("left from status should switch diff mode to worktree, got mode=%v handled=%v", m.diffMode, handled)
+	}
+}
+
 // TestHandleCommandKeyEscClearsStatusSelection ensures Esc clears status focus state.
 func TestHandleCommandKeyEscClearsStatusSelection(t *testing.T) {
 	m := newTestModel()
@@ -152,7 +178,7 @@ func TestHandleCommandKeyStatusGitShortcuts(t *testing.T) {
 
 	m.statusFileSelected = true
 	m.statusPaths = []string{"file.go"}
-	m.statusTable.SetRows([]table.Row{{"-", "modified", "file.go"}})
+	m.statusTable.SetRows([]table.Row{{"modified", "-", "file.go"}})
 	m.statusTable.SetCursor(0)
 
 	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
@@ -163,6 +189,24 @@ func TestHandleCommandKeyStatusGitShortcuts(t *testing.T) {
 	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	if !handled {
 		t.Fatal("r should be handled when a status file is selected")
+	}
+
+	m.focus = paneDiff
+	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if !handled {
+		t.Fatal("a should be handled in Diff pane when a status file is selected")
+	}
+}
+
+// TestHandleCommandKeyDiffGitShortcutsIgnoredWithoutSelection ensures a is not swallowed in Diff without a file row.
+func TestHandleCommandKeyDiffGitShortcutsIgnoredWithoutSelection(t *testing.T) {
+	m := newTestModel()
+	m.focus = paneDiff
+	m.statusFileSelected = false
+
+	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if handled {
+		t.Fatal("a should not be handled in Diff pane when no status file is selected")
 	}
 }
 

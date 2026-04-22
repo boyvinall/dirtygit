@@ -34,3 +34,21 @@ gitignore:
 # if true, walking the directory tree underneath the `include` directories
 # will traverse directories pointed to be symlinks
 followsymlinks: true
+
+# branch pane: omit local-only branches (no same-named ref on any configured
+# remote) whose short name matches any of these regexes
+branches:
+  hidelocalonly:
+    regex: []
+  # local branch names to always show when present, even when every remote tip matches
+  default:
+    - main
+    - master
+
+# Open repository from the TUI (key `e`): argv for exec (no shell).
+# Put the literal {repo} in any argument to substitute the absolute repo path.
+# If {repo} never appears, the path is appended as the last argument.
+# Environment variables in each argument are expanded.
+edit:
+  command:
+    - code

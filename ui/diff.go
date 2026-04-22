@@ -17,6 +17,28 @@ func (m *model) diffModeLabel() string {
 	return "Worktree"
 }
 
+// diffPaneBorderTitle is the Diff pane top-border label: pane name when focused,
+// plus Worktree and Staged with the active diff mode emphasized.
+func (m *model) diffPaneBorderTitle() string {
+	diffLbl := "Diff"
+	if m.focus == paneDiff {
+		diffLbl = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true).Render("Diff")
+	}
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	// Not lipgloss 214: that matches the focused-pane border accent (see view_test).
+	active := lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Bold(true)
+	sep := dim.Render(" · ")
+
+	worktree := dim.Render("Worktree")
+	staged := dim.Render("Staged")
+	if m.diffMode == diffModeWorktree {
+		worktree = active.Render("Worktree")
+	} else {
+		staged = active.Render("Staged")
+	}
+	return diffLbl + sep + worktree + sep + staged
+}
+
 // refreshDiffContent reloads the visible diff text when needed.
 func (m *model) refreshDiffContent() {
 	if !m.diffNeedsRefresh {

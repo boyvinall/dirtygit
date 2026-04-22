@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -203,13 +205,20 @@ func TestRefreshBranchContentOneRowPerBranch(t *testing.T) {
 			NewestLocation: "origin",
 			Locations: []scanner.BranchLocation{
 				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001},
+				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
 				{Name: "upstream", Exists: false},
 			},
 			// Names sort opposite to recency so the test proves UI order is by tip time, not name.
 			LocalBranches: []scanner.LocalBranchRef{
-				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true},
-				{Name: "zzz", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false},
+				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
+					{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
+					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+					{Name: "upstream", Exists: false},
+				}},
+				{Name: "zzz", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false, Locations: []scanner.BranchLocation{
+					{Name: "local", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
+					{Name: "origin", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
+				}},
 			},
 		},
 	}
@@ -220,16 +229,196 @@ func TestRefreshBranchContentOneRowPerBranch(t *testing.T) {
 		t.Fatalf("branch columns len = %d, want 4 (Branch, Commit, Tip age, Remotes)", len(cols))
 	}
 	rows := m.branchTable.Rows()
+	if len(rows) != 1 {
+		t.Fatalf("branch rows len = %d, want 1 (in-sync branch zzz omitted)", len(rows))
+	}
+	if rows[0][0] != "aaa" {
+		t.Fatalf("branch name column = %#v, want aaa (only branch with remote tip mismatch)", rows[0][0])
+	}
+	wantRemote := "origin +1-2, upstream: missing"
+	if rows[0][3] != wantRemote {
+		t.Fatalf("branch remotes cell = %q, want %q", rows[0][3], wantRemote)
+	}
+}
+
+func TestRefreshBranchContentHidesLocalOnlyMatchingRegex(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "dirtygit.yml")
+	content := `
+scandirs:
+  include:
+    - /tmp
+branches:
+  hidelocalonly:
+    regex:
+      - "^wip/"
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, err := scanner.ParseConfigFile(cfgPath, "")
+	if err != nil {
+		t.Fatalf("ParseConfigFile: %v", err)
+	}
+
+	m := newTestModel()
+	m.config = cfg
+	m.repoList = []string{"/repo"}
+	m.repositories["/repo"] = scanner.RepoStatus{
+		Branches: scanner.BranchStatus{
+			Branch:         "aaa",
+			NewestLocation: "origin",
+			Locations: []scanner.BranchLocation{
+				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
+				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+			},
+			LocalBranches: []scanner.LocalBranchRef{
+				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
+					{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
+					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+				}},
+				{Name: "wip/hidden", TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003, Current: false, Locations: []scanner.BranchLocation{
+					{Name: "local", Exists: true, TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003},
+					{Name: "origin", Exists: false},
+				}},
+				{Name: "other-local", TipHash: "eeeeeeeeeeeeeeee", TipUnix: 1_700_000_004, Current: false, Locations: []scanner.BranchLocation{
+					{Name: "local", Exists: true, TipHash: "eeeeeeeeeeeeeeee", TipUnix: 1_700_000_004},
+					{Name: "origin", Exists: false},
+				}},
+			},
+		},
+	}
+
+	m.refreshBranchContent(60)
+	rows := m.branchTable.Rows()
 	if len(rows) != 2 {
-		t.Fatalf("branch rows len = %d, want 2 branches", len(rows))
+		t.Fatalf("branch rows len = %d, want 2 (wip/hidden omitted)", len(rows))
 	}
-	if rows[0][0] != "zzz" || rows[1][0] != "aaa" {
-		t.Fatalf("branch name column = %#v / %#v, want newest tip (zzz) then older (aaa)", rows[0][0], rows[1][0])
+	got := map[string]bool{rows[0][0]: true, rows[1][0]: true}
+	for _, name := range []string{"aaa", "other-local"} {
+		if !got[name] {
+			t.Fatalf("branch rows = [%s %s], want aaa and other-local", rows[0][0], rows[1][0])
+		}
 	}
-	if rows[1][3] == "" || rows[1][3] == "-" {
-		t.Fatalf("current branch remotes cell = %q, want remote summary", rows[1][3])
+}
+
+func TestRefreshBranchContentAlwaysListsDefaultBranchesInSync(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "dirtygit-defaults.yml")
+	content := `
+scandirs:
+  include:
+    - /tmp
+branches:
+  default:
+    - main
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
 	}
-	if rows[0][3] != "-" {
-		t.Fatalf("non-current branch remotes = %q, want -", rows[0][3])
+	cfg, err := scanner.ParseConfigFile(cfgPath, "")
+	if err != nil {
+		t.Fatalf("ParseConfigFile: %v", err)
+	}
+
+	m := newTestModel()
+	m.config = cfg
+	m.repoList = []string{"/repo"}
+	m.repositories["/repo"] = scanner.RepoStatus{
+		Branches: scanner.BranchStatus{
+			Branch:         "aaa",
+			NewestLocation: "origin",
+			Locations: []scanner.BranchLocation{
+				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
+				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+				{Name: "upstream", Exists: false},
+			},
+			LocalBranches: []scanner.LocalBranchRef{
+				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
+					{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
+					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+					{Name: "upstream", Exists: false},
+				}},
+				{Name: "main", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false, Locations: []scanner.BranchLocation{
+					{Name: "local", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
+					{Name: "origin", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
+				}},
+				{Name: "zzz", TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003, Current: false, Locations: []scanner.BranchLocation{
+					{Name: "local", Exists: true, TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003},
+					{Name: "origin", Exists: true, TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003},
+				}},
+			},
+		},
+	}
+
+	m.refreshBranchContent(60)
+	rows := m.branchTable.Rows()
+	if len(rows) != 2 {
+		t.Fatalf("branch rows len = %d, want 2 (zzz in sync omitted, main listed as default)", len(rows))
+	}
+	got := map[string]bool{rows[0][0]: true, rows[1][0]: true}
+	for _, name := range []string{"aaa", "main"} {
+		if !got[name] {
+			t.Fatalf("branch rows = [%s %s], want aaa and main", rows[0][0], rows[1][0])
+		}
+	}
+}
+
+func TestRefreshBranchContentDefaultBranchOverridesLocalOnlyHide(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "dirtygit-default-hide.yml")
+	content := `
+scandirs:
+  include:
+    - /tmp
+branches:
+  hidelocalonly:
+    regex:
+      - "^main$"
+  default:
+    - main
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, err := scanner.ParseConfigFile(cfgPath, "")
+	if err != nil {
+		t.Fatalf("ParseConfigFile: %v", err)
+	}
+
+	m := newTestModel()
+	m.config = cfg
+	m.repoList = []string{"/repo"}
+	m.repositories["/repo"] = scanner.RepoStatus{
+		Branches: scanner.BranchStatus{
+			Branch:         "aaa",
+			NewestLocation: "origin",
+			Locations: []scanner.BranchLocation{
+				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
+				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+			},
+			LocalBranches: []scanner.LocalBranchRef{
+				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
+					{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
+					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+				}},
+				{Name: "main", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false, Locations: []scanner.BranchLocation{
+					{Name: "local", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
+					{Name: "origin", Exists: false},
+				}},
+			},
+		},
+	}
+
+	m.refreshBranchContent(60)
+	rows := m.branchTable.Rows()
+	if len(rows) != 2 {
+		t.Fatalf("branch rows len = %d, want 2 (main shown despite hide regex)", len(rows))
+	}
+	got := map[string]bool{rows[0][0]: true, rows[1][0]: true}
+	for _, name := range []string{"aaa", "main"} {
+		if !got[name] {
+			t.Fatalf("branch rows = [%s %s], want aaa and main", rows[0][0], rows[1][0])
+		}
 	}
 }

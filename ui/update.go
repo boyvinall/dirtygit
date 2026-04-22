@@ -77,6 +77,8 @@ func (m *model) handleScanTick() (tea.Model, tea.Cmd) {
 // handleHelpOverlayKey processes keys while the help overlay is open.
 func (m *model) handleHelpOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
 	case "esc":
 		m.helpOpen = false
 		return m, nil
@@ -128,11 +130,20 @@ func (m *model) cycleFocus(forward bool) {
 	m.focus = (m.focus - 1 + paneCount) % paneCount
 }
 
-// openCurrentRepo opens the selected repository in VS Code.
+// openCurrentRepo runs config edit.command for the selected repository.
 func (m *model) openCurrentRepo() {
 	repo := m.currentRepo()
-	if repo != "" {
-		_ = exec.Command("code", repo).Run()
+	if repo == "" || m.config == nil {
+		return
+	}
+	argv, err := m.config.EditArgv(repo)
+	if err != nil {
+		log.Printf("edit: %v", err)
+		return
+	}
+	cmd := exec.Command(argv[0], argv[1:]...)
+	if err := cmd.Run(); err != nil {
+		log.Printf("edit %q: %v", argv[0], err)
 	}
 }
 
@@ -232,7 +243,7 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 		m.openCurrentRepo()
 		return m, nil, true
 	case "a", "r":
-		if m.focus == paneStatus && m.statusFileSelected {
+		if m.statusFileSelected && (m.focus == paneStatus || m.focus == paneDiff) {
 			if path := m.selectedStatusPath(); path != "" {
 				repo := m.currentRepo()
 				var err error
@@ -304,7 +315,7 @@ func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 			return m, cmd, true
 		}
 	case tea.KeyLeft, tea.KeyRight:
-		if m.focus != paneDiff {
+		if m.focus != paneDiff && m.focus != paneStatus {
 			return m, nil, false
 		}
 		prevMode := m.diffMode

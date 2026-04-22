@@ -117,6 +117,97 @@ gitignore:
 	}
 }
 
+func TestParseConfigFileInvalidHideLocalOnlyRegex(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "bad-regex.yml")
+	content := `
+scandirs:
+  include:
+    - /opt/repos
+branches:
+  hidelocalonly:
+    regex:
+      - "("
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	_, err := ParseConfigFile(cfgPath, "")
+	if err == nil {
+		t.Fatal("ParseConfigFile() expected error for invalid regex")
+	}
+}
+
+func TestParseConfigFileCompilesHideLocalOnlyRegex(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "ok-regex.yml")
+	content := `
+scandirs:
+  include:
+    - /opt/repos
+branches:
+  hidelocalonly:
+    regex:
+      - "^wip/"
+      - "junk$"
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := ParseConfigFile(cfgPath, "")
+	if err != nil {
+		t.Fatalf("ParseConfigFile() error = %v", err)
+	}
+	lb := LocalBranchRef{Name: "wip/foo", Locations: []BranchLocation{
+		{Name: "local", Exists: true, TipHash: "a"},
+		{Name: "origin", Exists: false},
+	}}
+	if !cfg.ShouldHideLocalOnlyBranch(lb) {
+		t.Fatal("expected wip/foo to be hidden")
+	}
+	lb2 := LocalBranchRef{Name: "main", Locations: lb.Locations}
+	if cfg.ShouldHideLocalOnlyBranch(lb2) {
+		t.Fatal("expected main not to match hide patterns")
+	}
+	lb3 := LocalBranchRef{Name: "wip/foo", Locations: []BranchLocation{
+		{Name: "local", Exists: true, TipHash: "a"},
+		{Name: "origin", Exists: true, TipHash: "b"},
+	}}
+	if cfg.ShouldHideLocalOnlyBranch(lb3) {
+		t.Fatal("expected branch with remote ref not to be hidden as local-only")
+	}
+}
+
+func TestParseConfigFileDefaultBranches(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "defaults.yml")
+	content := `
+scandirs:
+  include:
+    - /opt/repos
+branches:
+  default:
+    - main
+    - master
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := ParseConfigFile(cfgPath, "")
+	if err != nil {
+		t.Fatalf("ParseConfigFile() error = %v", err)
+	}
+	if !cfg.AlwaysListBranch("main") || !cfg.AlwaysListBranch("master") {
+		t.Fatalf("AlwaysListBranch: main=%v master=%v", cfg.AlwaysListBranch("main"), cfg.AlwaysListBranch("master"))
+	}
+	if cfg.AlwaysListBranch("develop") {
+		t.Fatal("AlwaysListBranch(develop) should be false")
+	}
+}
+
 func TestStatusForRepo(t *testing.T) {
 	tmp := t.TempDir()
 	for _, argv := range [][]string{
