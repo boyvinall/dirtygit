@@ -99,6 +99,40 @@ func TestHandleArrowKeyRepoNavigation(t *testing.T) {
 	}
 }
 
+func TestHandleArrowKeyDiffModeToggle(t *testing.T) {
+	m := newTestModel()
+	m.focus = paneDiff
+	m.diffMode = diffModeWorktree
+
+	_, _, handled := m.handleArrowKey(tea.KeyMsg{Type: tea.KeyRight})
+	if !handled || m.diffMode != diffModeStaged {
+		t.Fatalf("right should switch diff mode to staged, got mode=%v handled=%v", m.diffMode, handled)
+	}
+
+	_, _, handled = m.handleArrowKey(tea.KeyMsg{Type: tea.KeyLeft})
+	if !handled || m.diffMode != diffModeWorktree {
+		t.Fatalf("left should switch diff mode to worktree, got mode=%v handled=%v", m.diffMode, handled)
+	}
+}
+
+func TestHandleCommandKeyEscClearsStatusSelection(t *testing.T) {
+	m := newTestModel()
+	m.focus = paneStatus
+	m.statusFileSelected = true
+	m.statusTable.Focus()
+
+	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyEsc})
+	if !handled {
+		t.Fatal("esc should be handled in status pane when file is selected")
+	}
+	if m.statusFileSelected {
+		t.Fatal("esc should clear status file selection")
+	}
+	if m.statusTable.Focused() {
+		t.Fatal("esc should clear status table highlight by blurring the table")
+	}
+}
+
 func TestHandleScanTickFinishesScan(t *testing.T) {
 	m := newTestModel()
 	m.width = 100

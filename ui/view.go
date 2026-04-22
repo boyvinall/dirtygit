@@ -103,11 +103,12 @@ func (m *model) scanProgressPopup() string {
 
 func (m *model) helpPanel() string {
 	lines := []string{
-		"Tab          Focus next pane (Repositories → Status → Log); when zoomed, cycle pane",
+		"Tab          Focus next pane (Repositories → Status → Diff → Log); when zoomed, cycle pane",
 		"Shift+Tab    Focus previous pane; when zoomed, cycle pane backward",
 		"Enter        Zoom focused pane to fullscreen; Enter again to restore layout",
-		"Esc          Exit zoom (when zoomed)",
-		"↑ / ↓        Move repo selection or scroll Status / Log",
+		"Esc          Exit zoom (when zoomed), or clear Status file selection",
+		"↑ / ↓        Move repo selection or scroll Status / Diff / Log",
+		"← / →        In Diff pane, switch Worktree/Staged diff mode",
 		"s            Scan / rescan repositories",
 		"e            Open selected repository in VS Code (code)",
 		"q  Ctrl+C    Quit",
@@ -208,6 +209,8 @@ func (m *model) renderZoomedPane(repoBody int) string {
 		return m.framedBlock(paneRepo, m.height, "Repositories", m.repoListView(repoBody))
 	case paneStatus:
 		return m.framedBlock(paneStatus, m.height, "Status", m.statusTable.View())
+	case paneDiff:
+		return m.framedBlock(paneDiff, m.height, "Diff ("+m.diffModeLabel()+")", m.diffVP.View())
 	case paneLog:
 		m.logVP.SetContent(m.logBuf.String())
 		return m.framedBlock(paneLog, m.height, "Log", m.logVP.View())
@@ -216,17 +219,19 @@ func (m *model) renderZoomedPane(repoBody int) string {
 	}
 }
 
-func (m *model) renderMainStack(repoBody, statusBody, logBody int) string {
+func (m *model) renderMainStack(repoBody, statusBody, diffBody, logBody int) string {
 	repoOuter := panelOuter(repoBody)
 	statusOuter := panelOuter(statusBody)
+	diffOuter := panelOuter(diffBody)
 	logOuter := panelOuter(logBody)
 
 	repoBlock := m.framedBlock(paneRepo, repoOuter, "Repositories", m.repoListView(repoBody))
 	statusBlock := m.framedBlock(paneStatus, statusOuter, "Status", m.statusTable.View())
+	diffBlock := m.framedBlock(paneDiff, diffOuter, "Diff ("+m.diffModeLabel()+")", m.diffVP.View())
 	m.logVP.SetContent(m.logBuf.String())
 	logBlock := m.framedBlock(paneLog, logOuter, "Log", m.logVP.View())
 
-	return lipgloss.JoinVertical(lipgloss.Left, repoBlock, statusBlock, logBlock)
+	return lipgloss.JoinVertical(lipgloss.Left, repoBlock, statusBlock, diffBlock, logBlock)
 }
 
 func (m *model) renderErrorOverlay() string {
@@ -256,8 +261,8 @@ func (m *model) View() string {
 		return m.renderScanOverlay()
 	}
 
-	repoBody, statusBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && logBody == 0 {
+	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
+	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
 		return ""
 	}
 	m.syncViewports()
@@ -266,7 +271,7 @@ func (m *model) View() string {
 	if m.zoomed {
 		stack = m.renderZoomedPane(repoBody)
 	} else {
-		stack = m.renderMainStack(repoBody, statusBody, logBody)
+		stack = m.renderMainStack(repoBody, statusBody, diffBody, logBody)
 	}
 	if m.err != nil {
 		return m.renderErrorOverlay()

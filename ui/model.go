@@ -16,12 +16,20 @@ type pane int
 const (
 	paneRepo pane = iota
 	paneStatus
+	paneDiff
 	paneLog
 )
 
 const minTermHeight = 22
 
 type tickMsg struct{}
+
+type diffMode int
+
+const (
+	diffModeWorktree diffMode = iota
+	diffModeStaged
+)
 
 type scanResult struct {
 	mgs scanner.MultiGitStatus
@@ -70,8 +78,15 @@ type model struct {
 	cursor       int
 	focus        pane
 
-	statusTable table.Model
-	logVP       viewport.Model
+	statusTable        table.Model
+	statusPaths        []string
+	statusFileSelected bool
+	diffMode           diffMode
+	diffNeedsRefresh   bool
+	diffContent        string
+	diffErr            error
+	diffVP             viewport.Model
+	logVP              viewport.Model
 
 	scanning       bool
 	scanResultCh   chan scanResult

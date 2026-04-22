@@ -12,12 +12,15 @@ import (
 
 func newTestModel() *model {
 	m := &model{
-		logBuf:       &logBuffer{max: 50},
-		repositories: make(scanner.MultiGitStatus),
-		focus:        paneRepo,
-		statusTable:  newStatusTable(),
+		logBuf:           &logBuffer{max: 50},
+		repositories:     make(scanner.MultiGitStatus),
+		focus:            paneRepo,
+		statusTable:      newStatusTable(),
+		diffMode:         diffModeWorktree,
+		diffNeedsRefresh: true,
 	}
 	m.logVP = viewport.New(20, 5)
+	m.diffVP = viewport.New(20, 5)
 	return m
 }
 
@@ -27,9 +30,12 @@ func TestLayoutBodies(t *testing.T) {
 	m.height = 30
 	m.repoList = []string{"a", "b", "c"}
 
-	repoBody, statusBody, logBody := m.layoutBodies()
-	if repoBody < 3 || statusBody < 3 || logBody < 3 {
-		t.Fatalf("layoutBodies() = (%d, %d, %d), expected all >= 3", repoBody, statusBody, logBody)
+	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
+	if repoBody < 3 || statusBody < 3 || diffBody < 3 || logBody < 3 {
+		t.Fatalf("layoutBodies() = (%d, %d, %d, %d), expected all >= 3", repoBody, statusBody, diffBody, logBody)
+	}
+	if statusBody != diffBody {
+		t.Fatalf("layoutBodies() status and diff should match, got status=%d diff=%d", statusBody, diffBody)
 	}
 }
 
@@ -38,9 +44,9 @@ func TestLayoutBodiesReturnsZerosOnSmallScreen(t *testing.T) {
 	m.width = 10
 	m.height = 10
 
-	repoBody, statusBody, logBody := m.layoutBodies()
-	if repoBody != 0 || statusBody != 0 || logBody != 0 {
-		t.Fatalf("layoutBodies() = (%d, %d, %d), want (0,0,0)", repoBody, statusBody, logBody)
+	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
+	if repoBody != 0 || statusBody != 0 || diffBody != 0 || logBody != 0 {
+		t.Fatalf("layoutBodies() = (%d, %d, %d, %d), want (0,0,0,0)", repoBody, statusBody, diffBody, logBody)
 	}
 }
 
@@ -51,9 +57,9 @@ func TestLayoutBodiesZoomedPaneOnly(t *testing.T) {
 	m.zoomed = true
 	m.zoomTarget = paneStatus
 
-	repoBody, statusBody, logBody := m.layoutBodies()
-	if repoBody != 0 || logBody != 0 || statusBody == 0 {
-		t.Fatalf("layoutBodies() = (%d, %d, %d), want repo=0 status>0 log=0", repoBody, statusBody, logBody)
+	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
+	if repoBody != 0 || diffBody != 0 || logBody != 0 || statusBody == 0 {
+		t.Fatalf("layoutBodies() = (%d, %d, %d, %d), want repo=0 status>0 diff=0 log=0", repoBody, statusBody, diffBody, logBody)
 	}
 }
 
@@ -170,5 +176,8 @@ func TestSyncViewportsSetsDimensions(t *testing.T) {
 	}
 	if m.logVP.Width <= 0 || m.logVP.Height <= 0 {
 		t.Fatalf("syncViewports() produced non-positive viewport dimensions: %dx%d", m.logVP.Width, m.logVP.Height)
+	}
+	if m.diffVP.Width <= 0 || m.diffVP.Height <= 0 {
+		t.Fatalf("syncViewports() produced non-positive diff viewport dimensions: %dx%d", m.diffVP.Width, m.diffVP.Height)
 	}
 }

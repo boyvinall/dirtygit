@@ -23,10 +23,12 @@ func Run(config *scanner.Config) error {
 	defer log.SetOutput(prevLog)
 
 	m := &model{
-		config:       config,
-		logBuf:       &logBuffer{max: 500},
-		focus:        paneRepo,
-		scanResultCh: make(chan scanResult, 1),
+		config:           config,
+		logBuf:           &logBuffer{max: 500},
+		focus:            paneRepo,
+		scanResultCh:     make(chan scanResult, 1),
+		diffMode:         diffModeWorktree,
+		diffNeedsRefresh: true,
 		scanSpinner: cspinner.New(
 			cspinner.WithSpinner(cspinner.MiniDot),
 			cspinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("159"))),

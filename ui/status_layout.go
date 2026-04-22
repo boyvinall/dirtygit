@@ -11,11 +11,11 @@ import (
 	"github.com/boyvinall/dirtygit/scanner"
 )
 
-// layoutBodies returns inner content heights: repo list, status viewport, log viewport.
+// layoutBodies returns inner content heights: repo list, status table, diff viewport, log viewport.
 // Each framed panel's total row count is panelOuter(body) (see framedBlock).
-func (m *model) layoutBodies() (repoBody, statusBody, logBody int) {
+func (m *model) layoutBodies() (repoBody, statusBody, diffBody, logBody int) {
 	if m.height < minTermHeight || m.width < 20 {
-		return 0, 0, 0
+		return 0, 0, 0, 0
 	}
 	if m.zoomed {
 		body := max(
@@ -23,11 +23,13 @@ func (m *model) layoutBodies() (repoBody, statusBody, logBody int) {
 			m.height-2, 3)
 		switch m.zoomTarget {
 		case paneRepo:
-			return body, 0, 0
+			return body, 0, 0, 0
 		case paneStatus:
-			return 0, body, 0
+			return 0, body, 0, 0
+		case paneDiff:
+			return 0, 0, body, 0
 		case paneLog:
-			return 0, 0, body
+			return 0, 0, 0, body
 		}
 	}
 	effH := m.height
@@ -36,22 +38,34 @@ func (m *model) layoutBodies() (repoBody, statusBody, logBody int) {
 	if n == 0 {
 		n = 1
 	}
-	repoBody = min(n+2, effH/2)
+	repoBody = min(n+2, effH/3)
 	repoBody = max(3, repoBody)
 
-	statusBody = effH - 6 - repoBody - logBody
-	for statusBody < 3 && logBody > 3 {
+	available := effH - 8 - repoBody - logBody
+	for available < 6 && logBody > 3 {
 		logBody--
-		statusBody = effH - 6 - repoBody - logBody
+		available = effH - 8 - repoBody - logBody
 	}
-	for statusBody < 3 && repoBody > 3 {
+	for available < 6 && repoBody > 3 {
 		repoBody--
-		statusBody = effH - 6 - repoBody - logBody
+		available = effH - 8 - repoBody - logBody
 	}
-	if statusBody < 3 || logBody < 3 || repoBody < 3 {
-		return 0, 0, 0
+	if available < 6 {
+		return 0, 0, 0, 0
 	}
-	return repoBody, statusBody, logBody
+
+	// Keep Status and Diff panes the same height.
+	if available%2 != 0 {
+		repoBody++
+		available--
+	}
+
+	statusBody = available / 2
+	diffBody = statusBody
+	if statusBody < 3 || diffBody < 3 || logBody < 3 || repoBody < 3 {
+		return 0, 0, 0, 0
+	}
+	return repoBody, statusBody, diffBody, logBody
 }
 
 func panelOuter(body int) int {
@@ -67,22 +81,26 @@ func (m *model) innerWidth() int {
 }
 
 func (m *model) syncViewports() {
-	repoBody, statusBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && logBody == 0 {
+	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
+	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
 		return
 	}
 	innerW := m.innerWidth()
 	m.statusTable.SetWidth(innerW)
 	m.statusTable.SetHeight(statusBody)
 	m.statusTable.SetColumns(statusColumns(innerW))
-	if m.focus == paneStatus {
+	if m.focus == paneStatus && m.statusFileSelected {
 		m.statusTable.Focus()
 	} else {
 		m.statusTable.Blur()
 	}
 	m.logVP.Width = innerW
 	m.logVP.Height = logBody
+	m.diffVP.Width = innerW
+	m.diffVP.Height = diffBody
 	m.refreshStatusContent()
+	m.refreshDiffContent()
+	m.diffVP.SetContent(m.diffContent)
 	m.logVP.SetContent(m.logBuf.String())
 }
 
@@ -123,6 +141,7 @@ func (m *model) refreshStatusContent() {
 	repo := m.currentRepo()
 	st, ok := m.repositories[repo]
 	rows := make([]table.Row, 0)
+	paths := make([]string, 0)
 	if ok && len(st.Porcelain.Entries) > 0 {
 		entries := append([]scanner.PorcelainEntry(nil), st.Porcelain.Entries...)
 		sort.Slice(entries, func(i, j int) bool {
@@ -138,6 +157,7 @@ func (m *model) refreshStatusContent() {
 				statusCodeLabel(entry.Worktree),
 				path,
 			})
+			paths = append(paths, entry.Path)
 		}
 	} else if ok && len(st.Status) > 0 {
 		// Fallback for statuses that do not include parsed porcelain data.
@@ -153,9 +173,29 @@ func (m *model) refreshStatusContent() {
 				statusCodeLabel(status.Worktree),
 				path,
 			})
+			paths = append(paths, path)
 		}
 	}
+	m.statusPaths = paths
+	if len(paths) == 0 {
+		m.statusFileSelected = false
+		m.statusTable.Blur()
+	}
 	m.statusTable.SetRows(rows)
+	if len(rows) > 0 && m.statusTable.Cursor() >= len(rows) {
+		m.statusTable.SetCursor(len(rows) - 1)
+	}
+}
+
+func (m *model) selectedStatusPath() string {
+	if !m.statusFileSelected {
+		return ""
+	}
+	i := m.statusTable.Cursor()
+	if i < 0 || i >= len(m.statusPaths) {
+		return ""
+	}
+	return m.statusPaths[i]
 }
 
 func statusCodeLabel(code git.StatusCode) string {

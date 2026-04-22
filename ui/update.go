@@ -15,6 +15,10 @@ func (m *model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 		inner := max(8, msg.Width-4)
 		m.logVP = viewport.New(inner, 8)
 	}
+	if m.diffVP.Height == 0 {
+		inner := max(8, msg.Width-4)
+		m.diffVP = viewport.New(inner, 8)
+	}
 	m.syncViewports()
 	return m, nil
 }
@@ -39,6 +43,8 @@ func (m *model) finishScan(r scanResult) {
 
 	m.repositories = r.mgs
 	m.repoList = sortedRepoPaths(r.mgs)
+	m.statusFileSelected = false
+	m.diffNeedsRefresh = true
 	if m.cursor >= len(m.repoList) {
 		m.cursor = max(0, len(m.repoList)-1)
 	}
@@ -91,21 +97,22 @@ func (m *model) toggleZoom() {
 }
 
 func (m *model) cycleFocus(forward bool) {
+	const paneCount = 4
 	if m.zoomed {
 		if forward {
-			m.zoomTarget = (m.zoomTarget + 1) % 3
+			m.zoomTarget = (m.zoomTarget + 1) % paneCount
 		} else {
-			m.zoomTarget = (m.zoomTarget - 1 + 3) % 3
+			m.zoomTarget = (m.zoomTarget - 1 + paneCount) % paneCount
 		}
 		m.focus = m.zoomTarget
 		return
 	}
 
 	if forward {
-		m.focus = (m.focus + 1) % 3
+		m.focus = (m.focus + 1) % paneCount
 		return
 	}
-	m.focus = (m.focus - 1 + 3) % 3
+	m.focus = (m.focus - 1 + paneCount) % paneCount
 }
 
 func (m *model) openCurrentRepo() {
@@ -122,6 +129,13 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	case "esc":
 		if m.zoomed {
 			m.zoomed = false
+			m.syncViewports()
+			return m, nil, true
+		}
+		if m.focus == paneStatus && m.statusFileSelected {
+			m.statusFileSelected = false
+			m.statusTable.Blur()
+			m.diffNeedsRefresh = true
 			m.syncViewports()
 			return m, nil, true
 		}
@@ -158,17 +172,36 @@ func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	switch msg.Type {
 	case tea.KeyUp, tea.KeyDown:
 		if m.focus == paneRepo {
+			prev := m.cursor
 			if msg.Type == tea.KeyUp && m.cursor > 0 {
 				m.cursor--
 			} else if msg.Type == tea.KeyDown && m.cursor < len(m.repoList)-1 {
 				m.cursor++
 			}
-			m.refreshStatusContent()
+			if m.cursor != prev {
+				m.statusFileSelected = false
+				m.refreshStatusContent()
+				m.diffNeedsRefresh = true
+			}
 			return m, nil, true
 		}
 		if m.focus == paneStatus {
+			if !m.statusFileSelected && len(m.statusPaths) > 0 {
+				m.statusFileSelected = true
+				m.statusTable.Focus()
+			}
 			var cmd tea.Cmd
 			m.statusTable, cmd = m.statusTable.Update(msg)
+			if len(m.statusPaths) > 0 {
+				m.statusFileSelected = true
+				m.diffNeedsRefresh = true
+				m.syncViewports()
+			}
+			return m, cmd, true
+		}
+		if m.focus == paneDiff {
+			var cmd tea.Cmd
+			m.diffVP, cmd = m.diffVP.Update(msg)
 			return m, cmd, true
 		}
 		if m.focus == paneLog {
@@ -177,6 +210,21 @@ func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 			m.logVP, cmd = m.logVP.Update(msg)
 			return m, cmd, true
 		}
+	case tea.KeyLeft, tea.KeyRight:
+		if m.focus != paneDiff {
+			return m, nil, false
+		}
+		prevMode := m.diffMode
+		if msg.Type == tea.KeyLeft {
+			m.diffMode = diffModeWorktree
+		} else {
+			m.diffMode = diffModeStaged
+		}
+		if m.diffMode != prevMode {
+			m.diffNeedsRefresh = true
+			m.syncViewports()
+		}
+		return m, nil, true
 	}
 	return m, nil, false
 }
@@ -205,8 +253,22 @@ func (m *model) handlePassiveInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.focus == paneStatus {
+			if !m.statusFileSelected && len(m.statusPaths) > 0 {
+				m.statusFileSelected = true
+				m.statusTable.Focus()
+			}
 			var cmd tea.Cmd
 			m.statusTable, cmd = m.statusTable.Update(msg)
+			if len(m.statusPaths) > 0 {
+				m.statusFileSelected = true
+				m.diffNeedsRefresh = true
+				m.syncViewports()
+			}
+			return m, cmd
+		}
+		if m.focus == paneDiff {
+			var cmd tea.Cmd
+			m.diffVP, cmd = m.diffVP.Update(msg)
 			return m, cmd
 		}
 		if m.focus == paneLog {
