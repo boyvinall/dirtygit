@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -55,7 +54,7 @@ func DumpConfig(config *Config) error {
 }
 
 func ParseConfigFile(filename, defaultConfig string) (*Config, error) {
-	b, err := ioutil.ReadFile(filepath.Clean(filename))
+	b, err := os.ReadFile(filepath.Clean(filename))
 	switch {
 	case err == nil:
 	case os.IsNotExist(err):

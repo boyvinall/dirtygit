@@ -1,43 +1,29 @@
-#------------------------------------------------
-#
-#	setup environment
-#
-#------------------------------------------------
+.PHONY: all build install lint test
 
-export GOPATH:=$(realpath $(shell pwd)/../../unity/gocode)
-TOP:=$(realpath $(shell pwd)/$(dir $(firstword $(MAKEFILE_LIST))))
-PACKAGE:=$(subst $(GOPATH)/src/,,$(TOP))
+all: lint test build
 
-#------------------------------------------------
-#
-#	standard rules
-#
-#------------------------------------------------
+define PROMPT
+	@echo
+	@echo "**********************************************************"
+	@echo "*"
+	@echo "*   $(1)"
+	@echo "*"
+	@echo "**********************************************************"
+	@echo
+endef
 
-# The first target defined is the default if no target is
-# specified on the command line.  Make sure this doesn't
-# take too long to run, so that people will run it on every
-# build.
-.PHONY: fast
-fast: build coverage-short lint-fast
+build:
+	$(call PROMPT, $@)
+	go build -o dirtygit .
 
-# Also define the "full fat" rule that does everything
-.PHONY: all build
-all: build coverage lint-full
+install:
+	$(call PROMPT, $@)
+	go install
 
--include .go-make/make/batteries.mk
-.go-make/make/%:
-	git clone https://github.com/go-make/make.git $(dir $@)
-	rm -rf $(dir $@)/.git
+lint:
+	$(call PROMPT, $@)
+	golangci-lint run
 
-#------------------------------------------------
-#
-#	now to actually build stuff...
-#
-#------------------------------------------------
-
-# The 'build' target is where you customise for your project.
-# In this simple example, we'll just install
-
-.PHONY: build
-build: install
+test:
+	$(call PROMPT, $@)
+	go test ./...

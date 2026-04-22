@@ -5,18 +5,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/karrick/godirwalk"
 	"golang.org/x/sync/errgroup"
 )
 
 func skip(needle string, haystack []string) bool {
-	for _, f := range haystack {
-		if f == needle {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(haystack, needle)
 }
 
 // walkone descends a single directory tree looking for git repos.

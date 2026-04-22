@@ -47,7 +47,7 @@ func (b *logBuffer) Write(p []byte) (int, error) {
 	if s == "" {
 		return len(p), nil
 	}
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		if line != "" {
 			b.lines = append(b.lines, line)
 		}
@@ -172,14 +172,8 @@ func scanProgressBar(width, checked, found int) string {
 	if width < 1 {
 		return ""
 	}
-	d := found
-	if d < 1 {
-		d = 1
-	}
-	filled := checked * width / d
-	if filled > width {
-		filled = width
-	}
+	d := max(found, 1)
+	filled := min(checked*width/d, width)
 	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }
 
@@ -207,10 +201,9 @@ func (m *model) layoutBodies() (repoBody, statusBody, logBody int) {
 		return 0, 0, 0
 	}
 	if m.zoomed {
-		body := m.height - 3 // panelOuter(body) == m.height
-		if body < 3 {
-			body = 3
-		}
+		body := max(
+			// panelOuter(body) == m.height
+			m.height-3, 3)
 		switch m.zoomTarget {
 		case paneRepo:
 			return body, 0, 0
