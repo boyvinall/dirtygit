@@ -17,6 +17,7 @@ func newTestModel() *model {
 		repositories:     make(scanner.MultiGitStatus),
 		focus:            paneRepo,
 		statusTable:      newStatusTable(),
+		branchTable:      newBranchTable(),
 		diffMode:         diffModeWorktree,
 		diffNeedsRefresh: true,
 	}
@@ -189,5 +190,44 @@ func TestSyncViewportsSetsDimensions(t *testing.T) {
 	}
 	if m.diffVP.Width <= 0 || m.diffVP.Height <= 0 {
 		t.Fatalf("syncViewports() produced non-positive diff viewport dimensions: %dx%d", m.diffVP.Width, m.diffVP.Height)
+	}
+}
+
+// TestRefreshBranchContentRendersLocationColumns verifies local/remote branch rows.
+func TestRefreshBranchContentRendersLocationColumns(t *testing.T) {
+	m := newTestModel()
+	m.repoList = []string{"/repo"}
+	m.repositories["/repo"] = scanner.RepoStatus{
+		Branches: scanner.BranchStatus{
+			Branch:         "main",
+			NewestLocation: "origin",
+			Locations: []scanner.BranchLocation{
+				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
+				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001},
+				{Name: "upstream", Exists: false},
+			},
+		},
+	}
+
+	m.refreshBranchContent(60)
+	cols := m.branchTable.Columns()
+	if len(cols) != 4 {
+		t.Fatalf("branch columns len = %d, want 4 (metric + local + origin + upstream)", len(cols))
+	}
+	rows := m.branchTable.Rows()
+	if len(rows) < 4 {
+		t.Fatalf("branch rows len = %d, want at least 4", len(rows))
+	}
+	if rows[0][1] != "main" || rows[0][2] != "main" {
+		t.Fatalf("name row = %#v, want branch name in location columns", rows[0])
+	}
+	if rows[2][1] != "yes (2)" {
+		t.Fatalf("local only-here cell = %q, want yes (2)", rows[2][1])
+	}
+	if rows[3][2] != "newest" {
+		t.Fatalf("origin recency cell = %q, want newest", rows[3][2])
+	}
+	if rows[2][3] != "(missing)" {
+		t.Fatalf("upstream cell = %q, want (missing)", rows[2][3])
 	}
 }

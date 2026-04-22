@@ -105,7 +105,7 @@ func (m *model) toggleZoom() {
 
 // cycleFocus moves focus across panes in forward or reverse order.
 func (m *model) cycleFocus(forward bool) {
-	const paneCount = 4
+	const paneCount = 5
 	if m.zoomed {
 		if forward {
 			m.zoomTarget = (m.zoomTarget + 1) % paneCount

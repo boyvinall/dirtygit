@@ -17,6 +17,7 @@ type pane int
 const (
 	paneRepo pane = iota
 	paneStatus
+	paneBranches
 	paneDiff
 	paneLog
 )
@@ -89,6 +90,7 @@ type model struct {
 	statusTable        table.Model
 	statusPaths        []string
 	statusFileSelected bool
+	branchTable        table.Model
 	diffMode           diffMode
 	diffNeedsRefresh   bool
 	diffContent        string

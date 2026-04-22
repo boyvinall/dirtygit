@@ -36,6 +36,7 @@ func Run(config *scanner.Config) error {
 		),
 	}
 	m.statusTable = newStatusTable()
+	m.branchTable = newBranchTable()
 	log.SetOutput(m.logBuf)
 
 	p := tea.NewProgram(m, tea.WithAltScreen())

@@ -109,7 +109,7 @@ func (m *model) scanProgressPopup() string {
 // helpPanel renders keyboard shortcut documentation.
 func (m *model) helpPanel() string {
 	lines := []string{
-		"Tab          Focus next pane (Repositories → Status → Diff → Log); when zoomed, cycle pane",
+		"Tab          Focus next pane (Repositories → Status → Branches → Diff → Log); when zoomed, cycle pane",
 		"Shift+Tab    Focus previous pane; when zoomed, cycle pane backward",
 		"Enter        Zoom focused pane to fullscreen; Enter again to restore layout",
 		"Esc          Exit zoom (when zoomed), or clear Status file selection",
@@ -133,14 +133,14 @@ func (m *model) helpPanel() string {
 }
 
 // framedBlock wraps pane body content in a titled border block.
-func (m *model) framedBlock(p pane, outerH int, title string, body string) string {
+func (m *model) framedBlock(p pane, outerW, outerH int, title string, body string) string {
 	fg := lipgloss.Color("240")
 	if m.focus == p {
 		fg = lipgloss.Color("214")
 	}
 	borderStyle := lipgloss.NewStyle().Foreground(fg)
 	border := borderFor(p, m.focus)
-	innerW := m.width - 2
+	innerW := max(1, outerW-2)
 	innerH := outerH - 2
 	inner := lipgloss.NewStyle().
 		Width(innerW).
@@ -165,12 +165,20 @@ func (m *model) framedBlock(p pane, outerH int, title string, body string) strin
 	return strings.Join(framed, "\n")
 }
 
+// framedStatusBranchesRow draws Status and Branches as two framed panes side by side.
+func (m *model) framedStatusBranchesRow(outerH int, statusBody, branchesBody string) string {
+	statusOuterW, branchesOuterW := m.statusBranchesOuterWidths(m.width)
+	statusBlock := m.framedBlock(paneStatus, statusOuterW, outerH, "Status", statusBody)
+	branchesBlock := m.framedBlock(paneBranches, branchesOuterW, outerH, "Branches", branchesBody)
+	return lipgloss.JoinHorizontal(lipgloss.Top, statusBlock, branchesBlock)
+}
+
 // repoListView renders the repository list with current selection styling.
 func (m *model) repoListView(innerH int) string {
 	selFocused := lipgloss.NewStyle().Background(lipgloss.Color("42")).Foreground(lipgloss.Color("0"))
 	selBlurred := lipgloss.NewStyle().Background(lipgloss.Color("248")).Foreground(lipgloss.Color("0"))
 	if len(m.repoList) == 0 && !m.scanning {
-		return "(no dirty repositories)"
+		return "(no dirty or diverged repositories)"
 	}
 	var b strings.Builder
 	for i, path := range m.repoList {
@@ -217,14 +225,16 @@ func (m *model) renderScanOverlay() string {
 func (m *model) renderZoomedPane(repoBody int) string {
 	switch m.zoomTarget {
 	case paneRepo:
-		return m.framedBlock(paneRepo, m.height, "Repositories", m.repoListView(repoBody))
+		return m.framedBlock(paneRepo, m.width, m.height, "Repositories", m.repoListView(repoBody))
 	case paneStatus:
-		return m.framedBlock(paneStatus, m.height, "Status", m.statusTable.View())
+		return m.framedBlock(paneStatus, m.width, m.height, "Status", m.statusTable.View())
+	case paneBranches:
+		return m.framedBlock(paneBranches, m.width, m.height, "Branches", m.branchTable.View())
 	case paneDiff:
-		return m.framedBlock(paneDiff, m.height, "Diff ("+m.diffModeLabel()+")", m.diffVP.View())
+		return m.framedBlock(paneDiff, m.width, m.height, "Diff ("+m.diffModeLabel()+")", m.diffVP.View())
 	case paneLog:
 		m.logVP.SetContent(m.logBuf.String())
-		return m.framedBlock(paneLog, m.height, "Log", m.logVP.View())
+		return m.framedBlock(paneLog, m.width, m.height, "Log", m.logVP.View())
 	default:
 		return ""
 	}
@@ -237,13 +247,13 @@ func (m *model) renderMainStack(repoBody, statusBody, diffBody, logBody int) str
 	diffOuter := panelOuter(diffBody)
 	logOuter := panelOuter(logBody)
 
-	repoBlock := m.framedBlock(paneRepo, repoOuter, "Repositories", m.repoListView(repoBody))
-	statusBlock := m.framedBlock(paneStatus, statusOuter, "Status", m.statusTable.View())
-	diffBlock := m.framedBlock(paneDiff, diffOuter, "Diff ("+m.diffModeLabel()+")", m.diffVP.View())
+	repoBlock := m.framedBlock(paneRepo, m.width, repoOuter, "Repositories", m.repoListView(repoBody))
+	statusRow := m.framedStatusBranchesRow(statusOuter, m.statusTable.View(), m.branchTable.View())
+	diffBlock := m.framedBlock(paneDiff, m.width, diffOuter, "Diff ("+m.diffModeLabel()+")", m.diffVP.View())
 	m.logVP.SetContent(m.logBuf.String())
-	logBlock := m.framedBlock(paneLog, logOuter, "Log", m.logVP.View())
+	logBlock := m.framedBlock(paneLog, m.width, logOuter, "Log", m.logVP.View())
 
-	return lipgloss.JoinVertical(lipgloss.Left, repoBlock, statusBlock, diffBlock, logBlock)
+	return lipgloss.JoinVertical(lipgloss.Left, repoBlock, statusRow, diffBlock, logBlock)
 }
 
 // renderErrorOverlay shows an error dialog with recovery hints.
