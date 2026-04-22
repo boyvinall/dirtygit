@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	cspinner "github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/boyvinall/dirtygit/scanner"
@@ -136,6 +137,32 @@ func TestHandleCommandKeyEscClearsStatusSelection(t *testing.T) {
 	}
 	if m.statusTable.Focused() {
 		t.Fatal("esc should clear status table highlight by blurring the table")
+	}
+}
+
+// TestHandleCommandKeyStatusGitShortcuts ensures a/r are command keys only when a status row is selected.
+func TestHandleCommandKeyStatusGitShortcuts(t *testing.T) {
+	m := newTestModel()
+	m.focus = paneStatus
+
+	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if handled {
+		t.Fatal("a should not be handled when no status file row is selected")
+	}
+
+	m.statusFileSelected = true
+	m.statusPaths = []string{"file.go"}
+	m.statusTable.SetRows([]table.Row{{"-", "modified", "file.go"}})
+	m.statusTable.SetCursor(0)
+
+	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if !handled {
+		t.Fatal("a should be handled when a status file is selected")
+	}
+
+	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if !handled {
+		t.Fatal("r should be handled when a status file is selected")
 	}
 }
 

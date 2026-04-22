@@ -10,15 +10,8 @@ linters:
     - misspell
     - unconvert
     - unparam
-  settings:
-    misspell:
-      locale: UK
   exclusions:
     generated: strict
     presets:
       - common-false-positives
       - std-error-handling
-    rules:
-      - linters:
-          - misspell
-        source: '\b[a-z_][a-z0-9_]*\.[A-Z][A-Za-z0-9_]*\b' # ignore imported packages

@@ -9,6 +9,44 @@ import (
 	"github.com/pkg/errors"
 )
 
+// listLocalBranches returns all refs/heads sorted by name. When detached is false,
+// currentName is the checked-out branch name and that row has Current set.
+func listLocalBranches(d, currentName string, detached bool) ([]LocalBranchRef, error) {
+	out, err := runGit(d, "for-each-ref", "refs/heads", "--sort=refname",
+		"--format=%(refname:short)\t%(objectname)\t%(committerdate:unix)")
+	if err != nil {
+		return nil, err
+	}
+	if out == "" {
+		return nil, nil
+	}
+	lines := strings.Split(out, "\n")
+	refs := make([]LocalBranchRef, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, "\t")
+		if len(parts) != 3 {
+			return nil, errors.Errorf("unexpected for-each-ref line: %q", line)
+		}
+		unix, err := strconv.ParseInt(parts[2], 10, 64)
+		if err != nil {
+			return nil, errors.Wrapf(err, "parse committer date for branch %q", parts[0])
+		}
+		name := parts[0]
+		cur := !detached && name == currentName
+		refs = append(refs, LocalBranchRef{
+			Name:    name,
+			TipHash: parts[1],
+			TipUnix: unix,
+			Current: cur,
+		})
+	}
+	return refs, nil
+}
+
 func runGit(d string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = d
@@ -100,7 +138,11 @@ func GitBranchStatus(d string) (BranchStatus, error) {
 		return BranchStatus{}, err
 	}
 	if detached {
-		return BranchStatus{Branch: branch, Detached: true}, nil
+		locals, listErr := listLocalBranches(d, branch, true)
+		if listErr != nil {
+			return BranchStatus{}, listErr
+		}
+		return BranchStatus{Branch: branch, Detached: true, LocalBranches: locals}, nil
 	}
 
 	remotes, err := listRemotes(d)
@@ -163,10 +205,16 @@ func GitBranchStatus(d string) (BranchStatus, error) {
 		}
 	}
 
+	locals, err := listLocalBranches(d, branch, false)
+	if err != nil {
+		return BranchStatus{}, err
+	}
+
 	return BranchStatus{
 		Branch:         branch,
 		Detached:       false,
 		Locations:      locations,
 		NewestLocation: newestLocation,
+		LocalBranches:  locals,
 	}, nil
 }

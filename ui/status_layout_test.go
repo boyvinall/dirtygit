@@ -193,18 +193,23 @@ func TestSyncViewportsSetsDimensions(t *testing.T) {
 	}
 }
 
-// TestRefreshBranchContentRendersLocationColumns verifies local/remote branch rows.
-func TestRefreshBranchContentRendersLocationColumns(t *testing.T) {
+// TestRefreshBranchContentOneRowPerBranch verifies one table row per local branch name.
+func TestRefreshBranchContentOneRowPerBranch(t *testing.T) {
 	m := newTestModel()
 	m.repoList = []string{"/repo"}
 	m.repositories["/repo"] = scanner.RepoStatus{
 		Branches: scanner.BranchStatus{
-			Branch:         "main",
+			Branch:         "aaa",
 			NewestLocation: "origin",
 			Locations: []scanner.BranchLocation{
 				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
 				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001},
 				{Name: "upstream", Exists: false},
+			},
+			// Names sort opposite to recency so the test proves UI order is by tip time, not name.
+			LocalBranches: []scanner.LocalBranchRef{
+				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true},
+				{Name: "zzz", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false},
 			},
 		},
 	}
@@ -212,22 +217,19 @@ func TestRefreshBranchContentRendersLocationColumns(t *testing.T) {
 	m.refreshBranchContent(60)
 	cols := m.branchTable.Columns()
 	if len(cols) != 4 {
-		t.Fatalf("branch columns len = %d, want 4 (metric + local + origin + upstream)", len(cols))
+		t.Fatalf("branch columns len = %d, want 4 (Branch, Commit, Tip age, Remotes)", len(cols))
 	}
 	rows := m.branchTable.Rows()
-	if len(rows) < 4 {
-		t.Fatalf("branch rows len = %d, want at least 4", len(rows))
+	if len(rows) != 2 {
+		t.Fatalf("branch rows len = %d, want 2 branches", len(rows))
 	}
-	if rows[0][1] != "main" || rows[0][2] != "main" {
-		t.Fatalf("name row = %#v, want branch name in location columns", rows[0])
+	if rows[0][0] != "zzz" || rows[1][0] != "aaa" {
+		t.Fatalf("branch name column = %#v / %#v, want newest tip (zzz) then older (aaa)", rows[0][0], rows[1][0])
 	}
-	if rows[2][1] != "yes (2)" {
-		t.Fatalf("local only-here cell = %q, want yes (2)", rows[2][1])
+	if rows[1][3] == "" || rows[1][3] == "-" {
+		t.Fatalf("current branch remotes cell = %q, want remote summary", rows[1][3])
 	}
-	if rows[3][2] != "newest" {
-		t.Fatalf("origin recency cell = %q, want newest", rows[3][2])
-	}
-	if rows[2][3] != "(missing)" {
-		t.Fatalf("upstream cell = %q, want (missing)", rows[2][3])
+	if rows[0][3] != "-" {
+		t.Fatalf("non-current branch remotes = %q, want -", rows[0][3])
 	}
 }

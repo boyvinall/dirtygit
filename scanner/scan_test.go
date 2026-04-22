@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -113,5 +114,54 @@ gitignore:
 	}
 	if len(cfg.ScanDirs.Include) != 1 || cfg.ScanDirs.Include[0] != "/opt/repos" {
 		t.Fatalf("unexpected include dirs: %+v", cfg.ScanDirs.Include)
+	}
+}
+
+func TestStatusForRepo(t *testing.T) {
+	tmp := t.TempDir()
+	for _, argv := range [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "t@example.com"},
+		{"git", "config", "user.name", "test"},
+	} {
+		cmd := exec.Command(argv[0], argv[1:]...)
+		cmd.Dir = tmp
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", err, out)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "dirty.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &Config{}
+	rs, include, err := StatusForRepo(cfg, tmp)
+	if err != nil {
+		t.Fatalf("StatusForRepo: %v", err)
+	}
+	if !include {
+		t.Fatal("expected repo with untracked file to be dirty")
+	}
+	if rs.IsClean() {
+		t.Fatal("expected non-clean status")
+	}
+
+	cmd := exec.Command("git", "add", "--", "dirty.txt")
+	cmd.Dir = tmp
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v: %s", err, out)
+	}
+	rs2, include2, err := StatusForRepo(cfg, tmp)
+	if err != nil {
+		t.Fatalf("StatusForRepo after add: %v", err)
+	}
+	if !include2 {
+		t.Fatal("expected staged-only change to remain dirty")
+	}
+	if len(rs2.Porcelain.Entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(rs2.Porcelain.Entries))
+	}
+	if rs2.Porcelain.Entries[0].Staging != 'A' {
+		t.Fatalf("want staged added, got %+v", rs2.Porcelain.Entries[0])
 	}
 }

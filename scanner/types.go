@@ -21,6 +21,16 @@ type BranchStatus struct {
 	Detached       bool
 	Locations      []BranchLocation
 	NewestLocation string
+	// LocalBranches lists refs/heads in name order (from git for-each-ref).
+	LocalBranches []LocalBranchRef
+}
+
+// LocalBranchRef is one local branch tip (refs/heads/*).
+type LocalBranchRef struct {
+	Name    string
+	TipHash string
+	TipUnix int64
+	Current bool
 }
 
 type BranchLocation struct {

@@ -1,11 +1,16 @@
 package ui
 
 import (
+	"fmt"
+	"log"
 	"os/exec"
+	"strings"
 
 	cspinner "github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/boyvinall/dirtygit/scanner"
 )
 
 // handleWindowSize updates dimensions and recomputes pane layout.
@@ -131,6 +136,62 @@ func (m *model) openCurrentRepo() {
 	}
 }
 
+func gitAdd(repo, path string) error {
+	if repo == "" {
+		return fmt.Errorf("no repository selected")
+	}
+	cmd := exec.Command("git", "add", "--", path)
+	cmd.Dir = repo
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		s := strings.TrimSpace(string(out))
+		if s != "" {
+			return fmt.Errorf("%w: %s", err, s)
+		}
+		return err
+	}
+	return nil
+}
+
+func gitResetPath(repo, path string) error {
+	if repo == "" {
+		return fmt.Errorf("no repository selected")
+	}
+	cmd := exec.Command("git", "reset", "HEAD", "--", path)
+	cmd.Dir = repo
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		s := strings.TrimSpace(string(out))
+		if s != "" {
+			return fmt.Errorf("%w: %s", err, s)
+		}
+		return err
+	}
+	return nil
+}
+
+// refreshRepoStatusAfterGit re-runs status for the current repo so the UI matches git.
+func (m *model) refreshRepoStatusAfterGit() {
+	repo := m.currentRepo()
+	if repo == "" || m.config == nil {
+		return
+	}
+	rs, include, err := scanner.StatusForRepo(m.config, repo)
+	if err != nil {
+		log.Printf("refresh repo status: %v", err)
+		return
+	}
+	if include {
+		m.repositories[repo] = rs
+	} else {
+		delete(m.repositories, repo)
+		m.repoList = sortedRepoPaths(m.repositories)
+		if m.cursor >= len(m.repoList) {
+			m.cursor = max(0, len(m.repoList)-1)
+		}
+	}
+}
+
 // handleCommandKey handles global command keys and focus controls.
 func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	switch msg.String() {
@@ -170,6 +231,26 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	case "e":
 		m.openCurrentRepo()
 		return m, nil, true
+	case "a", "r":
+		if m.focus == paneStatus && m.statusFileSelected {
+			if path := m.selectedStatusPath(); path != "" {
+				repo := m.currentRepo()
+				var err error
+				if msg.String() == "a" {
+					err = gitAdd(repo, path)
+				} else {
+					err = gitResetPath(repo, path)
+				}
+				if err != nil {
+					log.Printf("git: %v", err)
+				} else {
+					m.refreshRepoStatusAfterGit()
+				}
+				m.diffNeedsRefresh = true
+				m.syncViewports()
+				return m, nil, true
+			}
+		}
 	default:
 		if helpKey(msg) {
 			m.helpOpen = true

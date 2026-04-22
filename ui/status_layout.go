@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -184,7 +185,7 @@ func (m *model) applyStatusTableFocusAndStyles() {
 // newBranchTable builds the branch pane table with default styling.
 func newBranchTable() table.Model {
 	t := table.New(
-		table.WithColumns(nil),
+		table.WithColumns(branchRowColumns(48)),
 		table.WithRows(nil),
 		table.WithFocused(false),
 		table.WithHeight(6),
@@ -208,83 +209,145 @@ func statusColumns(totalWidth int) []table.Column {
 	}
 }
 
-// branchColumns computes branch table columns based on local + remote names.
+// branchRowColumns sizes the branch pane: one row per local branch name.
 // Account for Padding(0, 1) on every header and cell (see statusColumns).
-func branchColumns(totalWidth int, locations []string) []table.Column {
-	if len(locations) == 0 {
-		return []table.Column{{Title: "Info", Width: max(1, totalWidth-2)}}
+func branchRowColumns(totalWidth int) []table.Column {
+	const cols = 4
+	horizontalPad := 2 * cols
+	commitW := 10
+	tipW := 8
+	rest := totalWidth - horizontalPad - commitW - tipW
+	if rest < 2 {
+		commitW = max(4, min(8, totalWidth/4))
+		tipW = max(4, min(6, totalWidth/5))
+		rest = totalWidth - horizontalPad - commitW - tipW
 	}
-	metricWidth := 11
-	n := len(locations)
-	numCols := n + 1
-	horizontalPad := 2 * numCols
-	colWidth := max(1, (totalWidth-metricWidth-horizontalPad)/n)
-	cols := make([]table.Column, 0, len(locations)+1)
-	cols = append(cols, table.Column{Title: "Metric", Width: metricWidth})
-	for _, location := range locations {
-		cols = append(cols, table.Column{Title: location, Width: colWidth})
+	rest = max(1, rest)
+	branchW := max(1, rest/2)
+	remotesW := max(1, rest-branchW)
+	return []table.Column{
+		{Title: "Branch", Width: branchW},
+		{Title: "Commit", Width: commitW},
+		{Title: "Tip age", Width: tipW},
+		{Title: "Remotes", Width: remotesW},
 	}
-	return cols
 }
 
-// refreshBranchContent rebuilds branch divergence rows for the selected repository.
+// branchRemoteSummary compresses local vs remote tips for the current branch row.
+func branchRemoteSummary(b scanner.BranchStatus) string {
+	if b.Detached || len(b.Locations) == 0 {
+		return "-"
+	}
+	var local *scanner.BranchLocation
+	for i := range b.Locations {
+		if b.Locations[i].Name == "local" {
+			local = &b.Locations[i]
+			break
+		}
+	}
+	if local == nil || !local.Exists {
+		return "-"
+	}
+	parts := make([]string, 0, len(b.Locations))
+	for _, loc := range b.Locations {
+		if loc.Name == "local" {
+			continue
+		}
+		if !loc.Exists {
+			parts = append(parts, loc.Name+": missing")
+			continue
+		}
+		if loc.TipHash != local.TipHash {
+			if loc.UniqueCount > 0 {
+				parts = append(parts, fmt.Sprintf("%s +%d", loc.Name, loc.UniqueCount))
+			} else {
+				parts = append(parts, loc.Name+": differs")
+			}
+			continue
+		}
+		parts = append(parts, loc.Name+": ok")
+	}
+	if len(parts) == 0 {
+		return "-"
+	}
+	return strings.Join(parts, ", ")
+}
+
+// sortLocalBranchesByTipNewestFirst orders branches for the table: latest tip commit first.
+// Tie-breaker is name so order is stable when tips share a timestamp.
+func sortLocalBranchesByTipNewestFirst(branches []scanner.LocalBranchRef) {
+	sort.SliceStable(branches, func(i, j int) bool {
+		ui, uj := branches[i].TipUnix, branches[j].TipUnix
+		if ui != uj {
+			return ui > uj
+		}
+		return branches[i].Name < branches[j].Name
+	})
+}
+
+// refreshBranchContent rebuilds the branch pane: one table row per local branch name.
 func (m *model) refreshBranchContent(totalWidth int) {
+	cols := branchRowColumns(totalWidth)
+	m.branchTable.SetColumns(cols)
+
 	repo := m.currentRepo()
 	st, ok := m.repositories[repo]
 	if !ok {
-		m.branchTable.SetColumns(branchColumns(totalWidth, nil))
-		m.branchTable.SetRows([]table.Row{{"(select repository)"}})
+		m.branchTable.SetRows([]table.Row{{"(select repository)", "-", "-", "-"}})
 		m.branchTable.SetHeight(3)
 		return
 	}
 	branch := st.Branches
+
 	if branch.Detached {
-		m.branchTable.SetColumns(branchColumns(totalWidth, []string{"local"}))
-		m.branchTable.SetRows([]table.Row{{"Branch", branch.Branch}})
-		m.branchTable.SetHeight(3)
+		locals := append([]scanner.LocalBranchRef(nil), branch.LocalBranches...)
+		sortLocalBranchesByTipNewestFirst(locals)
+		rows := make([]table.Row, 0, 1+len(locals))
+		rows = append(rows, table.Row{"(detached HEAD)", shortHash(branch.Branch), "-", "-"})
+		for _, lb := range locals {
+			rows = append(rows, table.Row{
+				lb.Name,
+				shortHash(lb.TipHash),
+				relativeTime(lb.TipUnix),
+				"-",
+			})
+		}
+		m.branchTable.SetRows(rows)
+		m.branchTable.SetHeight(max(4, len(rows)+1))
 		return
 	}
 
-	locations := make([]string, 0, len(branch.Locations))
-	for _, loc := range branch.Locations {
-		locations = append(locations, loc.Name)
-	}
-	cols := branchColumns(totalWidth, locations)
-	rows := make([]table.Row, 0, 5)
-	nameRow := table.Row{"Name"}
-	for range branch.Locations {
-		nameRow = append(nameRow, branch.Branch)
-	}
-	commitRow := table.Row{"Commit"}
-	onlyHereRow := table.Row{"Only here"}
-	recencyRow := table.Row{"Recency"}
-	tipRow := table.Row{"Tip age"}
-	for _, loc := range branch.Locations {
-		if !loc.Exists {
-			commitRow = append(commitRow, "(missing)")
-			onlyHereRow = append(onlyHereRow, "(missing)")
-			recencyRow = append(recencyRow, "(missing)")
-			tipRow = append(tipRow, "(missing)")
-			continue
+	if len(branch.LocalBranches) == 0 {
+		remote := branchRemoteSummary(branch)
+		tip := "-"
+		when := "-"
+		for _, loc := range branch.Locations {
+			if loc.Name == "local" && loc.Exists {
+				tip = shortHash(loc.TipHash)
+				when = relativeTime(loc.TipUnix)
+				break
+			}
 		}
-		commitRow = append(commitRow, shortHash(loc.TipHash))
-		if loc.UniqueCount > 0 {
-			onlyHereRow = append(onlyHereRow, fmt.Sprintf("yes (%d)", loc.UniqueCount))
-		} else {
-			onlyHereRow = append(onlyHereRow, "-")
-		}
-		switch {
-		case loc.UniqueCount == 0:
-			recencyRow = append(recencyRow, "-")
-		case branch.NewestLocation == loc.Name:
-			recencyRow = append(recencyRow, "newest")
-		default:
-			recencyRow = append(recencyRow, "older")
-		}
-		tipRow = append(tipRow, relativeTime(loc.TipUnix))
+		m.branchTable.SetRows([]table.Row{{branch.Branch, tip, when, remote}})
+		m.branchTable.SetHeight(4)
+		return
 	}
-	rows = append(rows, nameRow, commitRow, onlyHereRow, recencyRow, tipRow)
-	m.branchTable.SetColumns(cols)
+
+	locals := append([]scanner.LocalBranchRef(nil), branch.LocalBranches...)
+	sortLocalBranchesByTipNewestFirst(locals)
+	rows := make([]table.Row, 0, len(locals))
+	for _, lb := range locals {
+		remote := "-"
+		if lb.Current {
+			remote = branchRemoteSummary(branch)
+		}
+		rows = append(rows, table.Row{
+			lb.Name,
+			shortHash(lb.TipHash),
+			relativeTime(lb.TipUnix),
+			remote,
+		})
+	}
 	m.branchTable.SetRows(rows)
 	m.branchTable.SetHeight(max(4, len(rows)+1))
 }

@@ -115,6 +115,7 @@ func (m *model) helpPanel() string {
 		"Esc          Exit zoom (when zoomed), or clear Status file selection",
 		"↑ / ↓        Move repo selection or scroll Status / Diff / Log",
 		"← / →        In Diff pane, switch Worktree/Staged diff mode",
+		"a  r         In Status pane with a file row selected: git add / git reset (unstage) that path",
 		"s            Scan / rescan repositories",
 		"e            Open selected repository in VS Code (code)",
 		"q  Ctrl+C    Quit",

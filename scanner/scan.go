@@ -99,3 +99,34 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (MultiGitSt
 	log.Println("statusDuration:", totalStatusDuration)
 	return results, w.err
 }
+
+// StatusForRepo returns fresh status for a single repository directory using the
+// same porcelain filtering and branch metadata as [ScanWithProgress]. The bool
+// is whether this repo should appear in the dirty list (!clean or remote mismatch).
+func StatusForRepo(config *Config, dir string) (RepoStatus, bool, error) {
+	ex, err := NewExcluder(config.GitIgnore.FileGlob, config.GitIgnore.DirGlob)
+	if err != nil {
+		return RepoStatus{}, false, err
+	}
+	start := time.Now()
+	porcelain, err := GitStatus(dir)
+	if err != nil {
+		return RepoStatus{}, false, err
+	}
+	porcelain = ex.FilterPorcelainStatus(porcelain)
+	st := porcelain.ToGitStatus()
+
+	branches, berr := GitBranchStatus(dir)
+	if berr != nil {
+		log.Printf("branch status scan failed for %s: %v", dir, berr)
+	}
+
+	rs := RepoStatus{
+		Status:    st,
+		Porcelain: porcelain,
+		Branches:  branches,
+		ScanTime:  time.Since(start),
+	}
+	include := !st.IsClean() || branches.HasLocalRemoteMismatch()
+	return rs, include, nil
+}
