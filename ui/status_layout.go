@@ -13,9 +13,8 @@ import (
 	"github.com/boyvinall/dirtygit/scanner"
 )
 
-// layoutBodies returns inner content heights: repo list, status table, diff viewport, log viewport.
-// Each framed panel's total row count is panelOuter(body) (see framedBlock).
-func (m *model) layoutBodies() (repoBody, statusBody, diffBody, logBody int) {
+// autoLayoutBodies returns the default vertical split without user resize prefs.
+func (m *model) autoLayoutBodies() (repoBody, statusBody, diffBody, logBody int) {
 	if m.height < minTermHeight || m.width < 20 {
 		return 0, 0, 0, 0
 	}
@@ -26,7 +25,7 @@ func (m *model) layoutBodies() (repoBody, statusBody, diffBody, logBody int) {
 		switch m.zoomTarget {
 		case paneRepo:
 			return body, 0, 0, 0
-		case paneStatus:
+		case paneStatus, paneBranches:
 			return 0, body, 0, 0
 		case paneDiff:
 			return 0, 0, body, 0
@@ -62,6 +61,33 @@ func (m *model) layoutBodies() (repoBody, statusBody, diffBody, logBody int) {
 	diffBody = available - statusBody
 	if statusBody < 3 || diffBody < 3 || logBody < 3 || repoBody < 3 {
 		return 0, 0, 0, 0
+	}
+	return repoBody, statusBody, diffBody, logBody
+}
+
+// layoutBodies returns inner content heights: repo list, status table, diff viewport, log viewport.
+// Each framed panel's total row count is panelOuter(body) (see framedBlock).
+func (m *model) layoutBodies() (repoBody, statusBody, diffBody, logBody int) {
+	ar, as, ad, al := m.autoLayoutBodies()
+	if ar == 0 && as == 0 && ad == 0 && al == 0 {
+		return 0, 0, 0, 0
+	}
+	if m.zoomed || !m.layoutUseCustomVertical {
+		return ar, as, ad, al
+	}
+	innerTotal := m.height - 8
+	repoBody = m.layoutRepoBody
+	statusBody = m.layoutStatusBody
+	logBody = m.layoutLogBody
+	if repoBody < 3 || statusBody < 3 || logBody < 3 {
+		return ar, as, ad, al
+	}
+	available := innerTotal - repoBody - logBody
+	diffBody = available - statusBody
+	if available < 6 || diffBody < 3 || repoBody < 3 || statusBody < 3 || logBody < 3 {
+		m.layoutUseCustomVertical = false
+		m.layoutRepoBody, m.layoutStatusBody, m.layoutLogBody = 0, 0, 0
+		return ar, as, ad, al
 	}
 	return repoBody, statusBody, diffBody, logBody
 }
@@ -125,6 +151,15 @@ func (m *model) innerWidth() int {
 
 // statusBranchesOuterWidths splits the row width between Status and Branches panes.
 func (m *model) statusBranchesOuterWidths(total int) (statusOuter, branchesOuter int) {
+	if m.layoutBranchesOuter > 0 {
+		bo := m.layoutBranchesOuter
+		if total < 20 {
+			bo = max(10, min(bo, total-10))
+		} else {
+			bo = max(24, min(bo, total-12))
+		}
+		return total - bo, bo
+	}
 	if total < 20 {
 		return max(10, total-10), min(10, total)
 	}

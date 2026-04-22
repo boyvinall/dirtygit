@@ -424,6 +424,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(msg)
 
 	case tea.MouseMsg:
+		if m.handleMousePaneResize(msg) {
+			return m, nil
+		}
 		if m.handleMouseFocusClick(msg) {
 			return m, nil
 		}

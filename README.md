@@ -103,8 +103,3 @@ compresses each remote into a short status (`ok`, `missing`, `differs`, or
 make lint
 make test
 ```
-
-## Future
-
-- Clearer error logging and in-app error presentation
-- Optional destructive actions (e.g. discard changes) with strong safeguards

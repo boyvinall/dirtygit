@@ -111,4 +111,16 @@ type model struct {
 
 	zoomed     bool
 	zoomTarget pane // which pane is fullscreen when zoomed
+
+	// layoutUseCustomVertical is true after the user resizes a horizontal seam;
+	// layoutRepoBody, layoutStatusBody, and layoutLogBody are inner body heights.
+	layoutUseCustomVertical bool
+	layoutRepoBody          int
+	layoutStatusBody        int
+	layoutLogBody           int
+
+	// layoutBranchesOuter is the framed Branches column width in cells (0 = automatic).
+	layoutBranchesOuter int
+
+	resizeDrag resizeSplit
 }
