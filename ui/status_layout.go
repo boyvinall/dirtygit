@@ -153,21 +153,12 @@ func (m *model) innerWidth() int {
 func (m *model) statusBranchesOuterWidths(total int) (statusOuter, branchesOuter int) {
 	if m.layoutBranchesOuter > 0 {
 		bo := m.layoutBranchesOuter
-		if total < 20 {
-			bo = max(10, min(bo, total-10))
-		} else {
-			bo = max(24, min(bo, total-12))
-		}
+		bo = max(10, min(bo, total-10))
 		return total - bo, bo
 	}
-	if total < 20 {
-		return max(10, total-10), min(10, total)
-	}
-	branchesOuter = max(24, total/3)
-	if branchesOuter > total-12 {
-		branchesOuter = total - 12
-	}
-	statusOuter = total - branchesOuter
+	// Default: equal outer width (remainder column goes to Branches when odd).
+	statusOuter = total / 2
+	branchesOuter = total - statusOuter
 	return statusOuter, branchesOuter
 }
 
@@ -249,17 +240,7 @@ func newStatusTable() table.Model {
 // this pane owns selection, grey when not).
 func statusTableStyles(selectionFocused bool) table.Styles {
 	s := table.DefaultStyles()
-	if selectionFocused {
-		s.Selected = lipgloss.NewStyle().
-			Bold(true).
-			Background(lipgloss.Color("42")).
-			Foreground(lipgloss.Color("0"))
-	} else {
-		s.Selected = lipgloss.NewStyle().
-			Bold(true).
-			Background(lipgloss.Color("248")).
-			Foreground(lipgloss.Color("0"))
-	}
+	s.Selected = tableSelectedRow(selectionFocused)
 	return s
 }
 
@@ -604,8 +585,5 @@ func borderFor(p, active pane) lipgloss.Border {
 
 // sectionTitle highlights pane titles when the pane is focused.
 func (m *model) sectionTitle(p pane, label string) string {
-	if m.focus == p {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true).Render(label)
-	}
-	return label
+	return focusedSectionTitle(m.focus == p, label)
 }

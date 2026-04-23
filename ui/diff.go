@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 // diffModeLabel returns the current Diff pane mode label.
@@ -20,23 +18,8 @@ func (m *model) diffModeLabel() string {
 // diffPaneBorderTitle is the Diff pane top-border label: pane name when focused,
 // plus Worktree and Staged with the active diff mode emphasized.
 func (m *model) diffPaneBorderTitle() string {
-	diffLbl := "Diff"
-	if m.focus == paneDiff {
-		diffLbl = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true).Render("Diff")
-	}
-	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	// Not lipgloss 214: that matches the focused-pane border accent (see view_test).
-	active := lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Bold(true)
-	sep := dim.Render(" · ")
-
-	worktree := dim.Render("Worktree")
-	staged := dim.Render("Staged")
-	if m.diffMode == diffModeWorktree {
-		worktree = active.Render("Worktree")
-	} else {
-		staged = active.Render("Staged")
-	}
-	return diffLbl + sep + worktree + sep + staged
+	return diffPaneTopBorderLabel(m.focus == paneDiff, m.diffMode == diffModeWorktree)
 }
 
 // refreshDiffContent reloads the visible diff text when needed.
@@ -79,33 +62,26 @@ func styleDiffContent(raw string) string {
 		return ""
 	}
 
-	added := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	deleted := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-	hunk := lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
-	header := lipgloss.NewStyle().Foreground(lipgloss.Color("141")).Bold(true)
-	file := lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
-	meta := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-
 	lines := strings.Split(raw, "\n")
 	for i, line := range lines {
 		switch {
 		case strings.HasPrefix(line, "diff --git"):
-			lines[i] = header.Render(line)
+			lines[i] = diffStyleHeader.Render(line)
 		case strings.HasPrefix(line, "@@"):
-			lines[i] = hunk.Render(line)
+			lines[i] = diffStyleHunk.Render(line)
 		case strings.HasPrefix(line, "+++ "), strings.HasPrefix(line, "--- "):
-			lines[i] = file.Render(line)
+			lines[i] = diffStyleFile.Render(line)
 		case strings.HasPrefix(line, "+"):
-			lines[i] = added.Render(line)
+			lines[i] = diffStyleAdded.Render(line)
 		case strings.HasPrefix(line, "-"):
-			lines[i] = deleted.Render(line)
+			lines[i] = diffStyleDeleted.Render(line)
 		case strings.HasPrefix(line, "index "),
 			strings.HasPrefix(line, "new file mode "),
 			strings.HasPrefix(line, "deleted file mode "),
 			strings.HasPrefix(line, "similarity index "),
 			strings.HasPrefix(line, "rename from "),
 			strings.HasPrefix(line, "rename to "):
-			lines[i] = meta.Render(line)
+			lines[i] = diffStyleMeta.Render(line)
 		}
 	}
 	return strings.Join(lines, "\n")

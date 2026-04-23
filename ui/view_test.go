@@ -24,6 +24,18 @@ func TestStatusBranchesRowUsesFullWidth(t *testing.T) {
 		t.Fatalf("statusOuter(%d) + branchesOuter(%d) = %d, want terminal width %d",
 			so, bo, so+bo, m.width)
 	}
+	if so != 50 || bo != 50 {
+		t.Fatalf("default horizontal split = (%d,%d), want (50,50)", so, bo)
+	}
+}
+
+func TestStatusBranchesOuterWidthsOddWidthPutsRemainderOnBranches(t *testing.T) {
+	m := newTestModel()
+	m.width = 81
+	so, bo := m.statusBranchesOuterWidths(m.width)
+	if so != 40 || bo != 41 {
+		t.Fatalf("statusOuter, branchesOuter = (%d,%d), want (40,41)", so, bo)
+	}
 }
 
 // TestStatusTableViewFitsInnerWidth guards against table padding widening rows past the pane.

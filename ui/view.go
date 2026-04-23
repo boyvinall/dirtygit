@@ -80,24 +80,16 @@ func (m *model) scanProgressPopup() string {
 
 	spin := lipgloss.NewStyle().Width(2).MaxWidth(2).Align(lipgloss.Center).Render(m.scanSpinner.View())
 	row1 := lipgloss.JoinHorizontal(lipgloss.Left, spin, " ", line)
-	row1 = lipgloss.Place(innerW, 1, lipgloss.Left, lipgloss.Top, row1,
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
+	row1 = placeSpace(innerW, 1, lipgloss.Left, lipgloss.Top, row1)
 
 	pathText := shortenScanPath(p.CurrentPath, innerW)
 	if pathText == "" {
-		pathText = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("—")
+		pathText = styleDim.Render("—")
 	}
-	pathRow := lipgloss.Place(innerW, 1, lipgloss.Left, lipgloss.Top, pathText,
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
+	pathRow := placeSpace(innerW, 1, lipgloss.Left, lipgloss.Top, pathText)
 
-	title := lipgloss.Place(innerW, 1, lipgloss.Left, lipgloss.Top, truncateASCII("Scanning repositories", innerW),
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
-	footer := lipgloss.Place(innerW, 1, lipgloss.Left, lipgloss.Top, truncateASCII("Please wait...", innerW),
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
+	title := placeSpace(innerW, 1, lipgloss.Left, lipgloss.Top, truncateASCII("Scanning repositories", innerW))
+	footer := placeSpace(innerW, 1, lipgloss.Left, lipgloss.Top, truncateASCII("Please wait...", innerW))
 
 	body := strings.Join([]string{
 		title,
@@ -111,16 +103,9 @@ func (m *model) scanProgressPopup() string {
 		footer,
 	}, "\n")
 
-	body = lipgloss.Place(innerW, scanModalInnerLines, lipgloss.Left, lipgloss.Top, body,
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
+	body = placeSpace(innerW, scanModalInnerLines, lipgloss.Left, lipgloss.Top, body)
 
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("39")).
-		Width(boxW).
-		Padding(1, 2).
-		Render(body)
+	return roundedModal(boxW).Render(body)
 }
 
 // helpPanel renders keyboard shortcut documentation in a frame that fills the terminal.
@@ -153,9 +138,7 @@ func (m *model) helpPanel() string {
 	}
 	innerW := max(1, w-2)
 	innerH := max(1, h-2)
-	padded := lipgloss.Place(innerW, innerH, lipgloss.Left, lipgloss.Top, body,
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
+	padded := placeSpace(innerW, innerH, lipgloss.Left, lipgloss.Top, body)
 	// Match other panes: title sits in the top border (see framedBlock).
 	// Use paneRepo so Diff's framedBlock title override (worktree/staged) does not replace this title.
 	return m.framedBlock(paneRepo, w, h, "Keyboard shortcuts", padded)
@@ -170,13 +153,11 @@ func (m *model) renderWhyInclusionOverlay() string {
 	}
 	innerW := max(8, boxW-6)
 	if repo == "" {
-		box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("39")).Width(boxW).Padding(1, 2).Render("No repository selected.")
-		return m.placeCenteredDimModal(box)
+		return m.placeCenteredDimModal(roundedModal(boxW).Render("No repository selected."))
 	}
 	rs, ok := m.repositories[repo]
 	if !ok {
-		box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("39")).Width(boxW).Padding(1, 2).Render("No status data for this path.")
-		return m.placeCenteredDimModal(box)
+		return m.placeCenteredDimModal(roundedModal(boxW).Render("No status data for this path."))
 	}
 	lines := scanner.RepoInclusionReasons(rs)
 	if len(lines) == 0 {
@@ -184,17 +165,11 @@ func (m *model) renderWhyInclusionOverlay() string {
 	}
 	reasons := strings.Join(lines, "\n\n")
 	wrapped := lipgloss.NewStyle().Width(innerW).MaxWidth(innerW).Render(reasons)
-	t := lipgloss.NewStyle().Bold(true).Render("Why is this repository listed?")
-	sub := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render(truncateASCII(repo, innerW))
-	foot := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("w or Esc to close")
+	t := styleBold.Render("Why is this repository listed?")
+	sub := styleDim.Render(truncateASCII(repo, innerW))
+	foot := styleDim.Render("w or Esc to close")
 	inner := strings.Join([]string{t, "", sub, "", wrapped, "", foot}, "\n")
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("39")).
-		Width(boxW).
-		Padding(1, 2).
-		Render(inner)
-	return m.placeCenteredDimModal(box)
+	return m.placeCenteredDimModal(roundedModal(boxW).Render(inner))
 }
 
 // renderDeleteRepoConfirmOverlay asks whether to recursively delete the selected repository directory.
@@ -206,34 +181,14 @@ func (m *model) renderDeleteRepoConfirmOverlay() string {
 	}
 	innerW := max(8, boxW-6)
 	if repo == "" {
-		box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("39")).Width(boxW).Padding(1, 2).Render("No repository selected.")
-		return m.placeCenteredDimModal(box)
+		return m.placeCenteredDimModal(roundedModal(boxW).Render("No repository selected."))
 	}
-	pathLine := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render(truncateASCII(repo, innerW))
-	t := lipgloss.NewStyle().Bold(true).Render("Delete this directory recursively?")
-	warn := lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Width(innerW).MaxWidth(innerW).Render("This will remove the folder and all of its contents. This cannot be undone.")
-
-	hlYes := lipgloss.NewStyle().Background(lipgloss.Color("160")).Foreground(lipgloss.Color("230"))
-	hlNo := lipgloss.NewStyle().Background(lipgloss.Color("160")).Foreground(lipgloss.Color("230"))
-	plain := lipgloss.NewStyle()
-	var yesBtn, noBtn string
-	if m.deleteConfirmYes {
-		yesBtn = hlYes.Render(" Yes ")
-		noBtn = plain.Render(" No ")
-	} else {
-		yesBtn = plain.Render(" Yes ")
-		noBtn = hlNo.Render(" No ")
-	}
-	btns := lipgloss.JoinHorizontal(lipgloss.Left, yesBtn, "  ", noBtn)
-	foot := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("←/→ or y/n · Enter to confirm · Esc to cancel")
-	inner := strings.Join([]string{t, "", pathLine, "", warn, "", btns, "", foot}, "\n")
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("39")).
-		Width(boxW).
-		Padding(1, 2).
-		Render(inner)
-	return m.placeCenteredDimModal(box)
+	pathLine := styleDim.Render(truncateASCII(repo, innerW))
+	t := styleBold.Render("Delete this directory recursively?")
+	warn := warnBlock(innerW).Render("This will remove the folder and all of its contents. This cannot be undone.")
+	btns := deleteConfirmButtons(m.deleteConfirmYes)
+	inner := strings.Join([]string{t, "", pathLine, "", warn, "", btns, "", deleteConfirmFooter()}, "\n")
+	return m.placeCenteredDimModal(roundedModal(boxW).Render(inner))
 }
 
 // renderDeleteStatusFileConfirmOverlay asks before deleting the selected status path from disk.
@@ -245,45 +200,24 @@ func (m *model) renderDeleteStatusFileConfirmOverlay() string {
 	}
 	innerW := max(8, boxW-6)
 	if repo == "" || m.deleteStatusFilePendingRel == "" {
-		box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("39")).Width(boxW).Padding(1, 2).Render("Nothing to delete.")
-		return m.placeCenteredDimModal(box)
+		return m.placeCenteredDimModal(roundedModal(boxW).Render("Nothing to delete."))
 	}
 	absPath, err := statusPathUnderRepo(repo, m.deleteStatusFilePendingRel)
-	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	repoLine := dim.Render(truncateASCII(repo, innerW))
-	relLine := dim.Render(truncateASCII(m.deleteStatusFilePendingRel, innerW))
-	t := lipgloss.NewStyle().Bold(true).Render("Delete this file or directory from disk?")
-	warn := lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Width(innerW).MaxWidth(innerW).Render("This removes the path from your working tree (not only from git's index). This cannot be undone.")
+	repoLine := styleDim.Render(truncateASCII(repo, innerW))
+	relLine := styleDim.Render(truncateASCII(m.deleteStatusFilePendingRel, innerW))
+	t := styleBold.Render("Delete this file or directory from disk?")
+	warn := warnBlock(innerW).Render("This removes the path from your working tree (not only from git's index). This cannot be undone.")
 	if err != nil {
-		warn = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Width(innerW).MaxWidth(innerW).Render(fmt.Sprintf("Invalid path: %v", err))
+		warn = warnBlock(innerW).Render(fmt.Sprintf("Invalid path: %v", err))
 	}
-
-	hlYes := lipgloss.NewStyle().Background(lipgloss.Color("160")).Foreground(lipgloss.Color("230"))
-	hlNo := lipgloss.NewStyle().Background(lipgloss.Color("160")).Foreground(lipgloss.Color("230"))
-	plain := lipgloss.NewStyle()
-	var yesBtn, noBtn string
-	if m.deleteConfirmYes {
-		yesBtn = hlYes.Render(" Yes ")
-		noBtn = plain.Render(" No ")
-	} else {
-		yesBtn = plain.Render(" Yes ")
-		noBtn = hlNo.Render(" No ")
-	}
-	btns := lipgloss.JoinHorizontal(lipgloss.Left, yesBtn, "  ", noBtn)
-	foot := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("←/→ or y/n · Enter to confirm · Esc to cancel")
+	btns := deleteConfirmButtons(m.deleteConfirmYes)
 	parts := []string{t, "", "Repository", repoLine, "", "Path (in repo)", relLine}
 	if err == nil {
-		parts = append(parts, "", "Full path", dim.Render(truncateASCII(absPath, innerW)))
+		parts = append(parts, "", "Full path", styleDim.Render(truncateASCII(absPath, innerW)))
 	}
-	parts = append(parts, "", warn, "", btns, "", foot)
+	parts = append(parts, "", warn, "", btns, "", deleteConfirmFooter())
 	inner := strings.Join(parts, "\n")
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("39")).
-		Width(boxW).
-		Padding(1, 2).
-		Render(inner)
-	return m.placeCenteredDimModal(box)
+	return m.placeCenteredDimModal(roundedModal(boxW).Render(inner))
 }
 
 // framedBlock wraps pane body content in a titled border block.
@@ -378,8 +312,8 @@ func (m *model) syncRepoListScrollOnly() {
 
 // repoListView renders the repository list with current selection styling.
 func (m *model) repoListView(innerH int) string {
-	selFocused := lipgloss.NewStyle().Background(lipgloss.Color("42")).Foreground(lipgloss.Color("0"))
-	selBlurred := lipgloss.NewStyle().Background(lipgloss.Color("248")).Foreground(lipgloss.Color("0"))
+	selFocused := styleSelRowFocused
+	selBlurred := styleSelRowBlurred
 	if len(m.repoList) == 0 && !m.scanning {
 		return "(no dirty or diverged repositories)"
 	}
@@ -411,9 +345,7 @@ func (m *model) repoListView(innerH int) string {
 			b.WriteString(path)
 		}
 	}
-	return lipgloss.Place(m.innerWidth(), innerH, lipgloss.Left, lipgloss.Top, b.String(),
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
+	return placeSpace(m.innerWidth(), innerH, lipgloss.Left, lipgloss.Top, b.String())
 }
 
 // renderHelpOverlay draws the help panel edge-to-edge in the terminal.
@@ -465,12 +397,7 @@ func (m *model) renderMainStack(repoBody, statusBody, diffBody, logBody int) str
 // renderErrorOverlay shows an error dialog with recovery hints.
 func (m *model) renderErrorOverlay() string {
 	errW := min(m.width-4, 80)
-	errBox := lipgloss.NewStyle().
-		Border(lipgloss.DoubleBorder()).
-		BorderForeground(lipgloss.Color("9")).
-		Width(errW).
-		Padding(1, 2).
-		Render("Error\n\n" + m.err.Error() + "\n\n(s to rescan, q to quit)")
+	errBox := errorDoubleBox(errW).Render("Error\n\n" + m.err.Error() + "\n\n(s to rescan, q to quit)")
 	return m.placeCenteredPlain(errBox)
 }
 
@@ -492,7 +419,7 @@ func (m *model) View() string {
 		return m.renderWhyInclusionOverlay()
 	}
 	if m.height < minTermHeight {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render("Need bigger screen (min height 22).")
+		return styleErr.Render("Need bigger screen (min height 22).")
 	}
 	if m.scanning {
 		return m.renderScanOverlay()

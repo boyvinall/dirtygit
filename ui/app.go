@@ -6,7 +6,6 @@ import (
 
 	cspinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/boyvinall/dirtygit/scanner"
 )
@@ -14,7 +13,7 @@ import (
 func newScanSpinner() cspinner.Model {
 	return cspinner.New(
 		cspinner.WithSpinner(cspinner.MiniDot),
-		cspinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("159"))),
+		cspinner.WithStyle(styleScanSpin),
 	)
 }
 

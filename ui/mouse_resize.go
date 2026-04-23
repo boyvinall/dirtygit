@@ -174,19 +174,14 @@ func (m *model) applyResizeDrag(x, y int) {
 		}
 		statusOuter := x
 		branches := m.width - statusOuter
-		minBranch := 10
-		minStatus := 10
-		if m.width >= 20 {
-			minBranch = 24
-			minStatus = 12
+		const minSide = 10
+		if branches < minSide {
+			branches = minSide
 		}
-		if branches < minBranch {
-			branches = minBranch
+		if branches > m.width-minSide {
+			branches = m.width - minSide
 		}
-		if branches > m.width-minStatus {
-			branches = m.width - minStatus
-		}
-		if branches < minBranch || branches > m.width-minStatus {
+		if branches < minSide || branches > m.width-minSide {
 			return
 		}
 		m.layoutBranchesOuter = branches
