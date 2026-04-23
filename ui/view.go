@@ -121,6 +121,7 @@ func (m *model) helpPanel() string {
 		"Shift+↑/↓     Same, in steps of 10 lines",
 		"← / →         In Status or Diff: switch Worktree vs Staged diff",
 		"a  r          With a file row selected (Status or Diff): git add / git reset (unstage) that path",
+		"C             With a file row selected (Status or Diff): restore file to last commit (confirms git checkout HEAD -- path)",
 		"s             Scan / rescan",
 		"e             Open selected repository (edit.command in config)",
 		"w             Repositories focused: why this repository is in the list",
@@ -217,6 +218,33 @@ func (m *model) renderDeleteStatusFileConfirmOverlay() string {
 	}
 	parts = append(parts, "", warn, "", btns, "", deleteConfirmFooter())
 	inner := strings.Join(parts, "\n")
+	return m.placeCenteredDimModal(roundedModal(boxW).Render(inner))
+}
+
+// renderCheckoutStatusFileConfirmOverlay asks before discarding local changes with git checkout HEAD -- path.
+func (m *model) renderCheckoutStatusFileConfirmOverlay() string {
+	repo := m.currentRepo()
+	boxW := min(m.width-6, 72)
+	if boxW < 20 {
+		boxW = min(m.width-2, 20)
+	}
+	innerW := max(8, boxW-6)
+	if repo == "" || m.checkoutStatusFilePendingRel == "" {
+		return m.placeCenteredDimModal(roundedModal(boxW).Render("Nothing to restore."))
+	}
+	repoLine := styleDim.Render(truncateASCII(repo, innerW))
+	relLine := styleDim.Render(truncateASCII(m.checkoutStatusFilePendingRel, innerW))
+	t := styleBold.Render("Restore this path from the last commit?")
+	warn := warnBlock(innerW).Render("This runs git checkout HEAD -- on the path. Uncommitted changes (staged and unstaged) for this file will be discarded.")
+	btns := deleteConfirmButtons(m.deleteConfirmYes)
+	inner := strings.Join([]string{
+		t, "",
+		"Repository", repoLine, "",
+		"Path (in repo)", relLine, "",
+		warn, "",
+		btns, "",
+		deleteConfirmFooter(),
+	}, "\n")
 	return m.placeCenteredDimModal(roundedModal(boxW).Render(inner))
 }
 
@@ -414,6 +442,9 @@ func (m *model) View() string {
 	}
 	if m.deleteStatusFileConfirmOpen {
 		return m.renderDeleteStatusFileConfirmOverlay()
+	}
+	if m.checkoutStatusFileConfirmOpen {
+		return m.renderCheckoutStatusFileConfirmOverlay()
 	}
 	if m.whyRepoOpen {
 		return m.renderWhyInclusionOverlay()

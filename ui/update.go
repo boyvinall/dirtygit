@@ -144,6 +144,48 @@ func (m *model) handleDeleteRepoConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 	}
 }
 
+// handleCheckoutStatusFileConfirmKey processes keys while the checkout-from-HEAD confirmation is open.
+func (m *model) handleCheckoutStatusFileConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "esc":
+		m.checkoutStatusFileConfirmOpen = false
+		m.checkoutStatusFilePendingRel = ""
+		return m, nil
+	case "n":
+		m.deleteConfirmYes = false
+		return m, nil
+	case "y":
+		m.deleteConfirmYes = true
+		return m, nil
+	case "left", "h":
+		m.deleteConfirmYes = false
+		return m, nil
+	case "right", "l":
+		m.deleteConfirmYes = true
+		return m, nil
+	case "enter":
+		m.checkoutStatusFileConfirmOpen = false
+		pending := m.checkoutStatusFilePendingRel
+		m.checkoutStatusFilePendingRel = ""
+		if !m.deleteConfirmYes {
+			return m, nil
+		}
+		repo := m.currentRepo()
+		if err := gitCheckoutHeadPath(repo, pending); err != nil {
+			log.Printf("git: %v", err)
+		} else {
+			m.refreshRepoStatusAfterGit()
+		}
+		m.diffNeedsRefresh = true
+		m.syncViewports()
+		return m, nil
+	default:
+		return m, nil
+	}
+}
+
 // handleDeleteStatusFileConfirmKey processes keys while the delete-status-file confirmation is open.
 func (m *model) handleDeleteStatusFileConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -335,6 +377,15 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 				return m, nil, true
 			}
 		}
+	case "C":
+		if m.statusFileSelected && (m.focus == paneStatus || m.focus == paneDiff) {
+			if path := m.selectedStatusPath(); path != "" {
+				m.checkoutStatusFileConfirmOpen = true
+				m.checkoutStatusFilePendingRel = path
+				m.deleteConfirmYes = false
+				return m, nil, true
+			}
+		}
 	default:
 		if helpKey(msg) {
 			m.helpOpen = true
@@ -491,6 +542,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.deleteStatusFileConfirmOpen {
 		return m.handleDeleteStatusFileConfirmKey(msg)
 	}
+	if m.checkoutStatusFileConfirmOpen {
+		return m.handleCheckoutStatusFileConfirmKey(msg)
+	}
 	if m.whyRepoOpen {
 		return m.handleWhyRepoOverlayKey(msg)
 	}
@@ -511,7 +565,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // left-button press. Returns true when the event is consumed (focus changed);
 // otherwise the caller should forward the mouse message as usual.
 func (m *model) handleMouseFocusClick(msg tea.MouseMsg) bool {
-	if m.helpOpen || m.deleteRepoConfirmOpen || m.deleteStatusFileConfirmOpen || m.whyRepoOpen || m.scanning || m.err != nil || m.height < minTermHeight {
+	if m.helpOpen || m.deleteRepoConfirmOpen || m.deleteStatusFileConfirmOpen || m.checkoutStatusFileConfirmOpen || m.whyRepoOpen || m.scanning || m.err != nil || m.height < minTermHeight {
 		return false
 	}
 	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {

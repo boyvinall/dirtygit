@@ -122,6 +122,10 @@ type model struct {
 	deleteStatusFileConfirmOpen bool
 	// deleteStatusFilePendingRel is the repo-relative path pending confirmation (git status form).
 	deleteStatusFilePendingRel string
+	// checkoutStatusFileConfirmOpen asks before git checkout HEAD -- path.
+	checkoutStatusFileConfirmOpen bool
+	// checkoutStatusFilePendingRel is the repo-relative path pending checkout confirmation.
+	checkoutStatusFilePendingRel string
 	// deleteConfirmYes is true when "Yes" is highlighted; default is false ("No" highlighted).
 	deleteConfirmYes bool
 

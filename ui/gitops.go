@@ -98,6 +98,25 @@ func gitResetPath(repo, path string) error {
 	return nil
 }
 
+// gitCheckoutHeadPath restores the path's index and working tree content from HEAD
+// (same as `git checkout HEAD -- <path>`).
+func gitCheckoutHeadPath(repo, path string) error {
+	if repo == "" {
+		return fmt.Errorf("no repository selected")
+	}
+	cmd := exec.Command("git", "checkout", "HEAD", "--", path)
+	cmd.Dir = repo
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		s := strings.TrimSpace(string(out))
+		if s != "" {
+			return fmt.Errorf("%w: %s", err, s)
+		}
+		return err
+	}
+	return nil
+}
+
 // refreshRepoStatusAfterGit re-runs status for the current repo so the UI matches git.
 func (m *model) refreshRepoStatusAfterGit() {
 	repo := m.currentRepo()

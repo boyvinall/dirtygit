@@ -2,6 +2,7 @@ package ui
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -262,6 +263,14 @@ func TestHandleCommandKeyStatusGitShortcuts(t *testing.T) {
 	if !handled {
 		t.Fatal("a should be handled in Diff pane when a status file is selected")
 	}
+
+	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
+	if !handled {
+		t.Fatal("C should be handled in Diff pane when a status file is selected")
+	}
+	if !m.checkoutStatusFileConfirmOpen || m.checkoutStatusFilePendingRel != "file.go" {
+		t.Fatalf("C should open checkout confirmation, open=%v pending=%q", m.checkoutStatusFileConfirmOpen, m.checkoutStatusFilePendingRel)
+	}
 }
 
 // TestHandleCommandKeyDiffGitShortcutsIgnoredWithoutSelection ensures a is not swallowed in Diff without a file row.
@@ -273,6 +282,10 @@ func TestHandleCommandKeyDiffGitShortcutsIgnoredWithoutSelection(t *testing.T) {
 	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	if handled {
 		t.Fatal("a should not be handled in Diff pane when no status file is selected")
+	}
+	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
+	if handled {
+		t.Fatal("C should not be handled in Diff pane when no status file is selected")
 	}
 }
 
@@ -472,5 +485,85 @@ func TestDeleteStatusFileConfirmRemovesPath(t *testing.T) {
 	m.handleDeleteStatusFileConfirmKey(tea.KeyMsg{Type: tea.KeyEnter})
 	if _, err := os.Stat(target); !os.IsNotExist(err) {
 		t.Fatalf("file should be removed, stat err=%v", err)
+	}
+}
+
+// TestCheckoutStatusFileCKeyOpensConfirm verifies C opens the checkout-from-HEAD dialog.
+func TestCheckoutStatusFileCKeyOpensConfirm(t *testing.T) {
+	m := newTestModel()
+	m.width = 100
+	m.height = 30
+	m.repoList = []string{"/repo"}
+	m.cursor = 0
+	m.focus = paneStatus
+	m.statusFileSelected = true
+	m.statusPaths = []string{"tracked.txt"}
+	m.statusTable.SetRows([]table.Row{{"modified", "-", "tracked.txt"}})
+	m.statusTable.SetCursor(0)
+
+	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
+	if !handled {
+		t.Fatal("C should be handled with status file selected")
+	}
+	if !m.checkoutStatusFileConfirmOpen || m.checkoutStatusFilePendingRel != "tracked.txt" {
+		t.Fatalf("checkout confirm: open=%v pending=%q", m.checkoutStatusFileConfirmOpen, m.checkoutStatusFilePendingRel)
+	}
+	overlay := m.renderCheckoutStatusFileConfirmOverlay()
+	if !strings.Contains(overlay, "Restore this path from the last commit") {
+		t.Fatalf("overlay title missing: %q", overlay)
+	}
+	if !strings.Contains(overlay, "tracked.txt") {
+		t.Fatalf("overlay should show relative path: %q", overlay)
+	}
+
+	mod, _ := m.handleCheckoutStatusFileConfirmKey(tea.KeyMsg{Type: tea.KeyEsc})
+	if mod.(*model).checkoutStatusFileConfirmOpen {
+		t.Fatal("esc should close checkout modal")
+	}
+}
+
+// TestCheckoutStatusFileConfirmYesRestores runs git checkout HEAD after confirmation.
+func TestCheckoutStatusFileConfirmYesRestores(t *testing.T) {
+	repo := t.TempDir()
+	runGit := func(arg ...string) {
+		t.Helper()
+		cmd := exec.Command("git", arg...)
+		cmd.Dir = repo
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", arg, err, out)
+		}
+	}
+	runGit("init", "-b", "main")
+	runGit("config", "user.email", "u@x")
+	runGit("config", "user.name", "u")
+	tracked := filepath.Join(repo, "hello.txt")
+	if err := os.WriteFile(tracked, []byte("committed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "hello.txt")
+	runGit("commit", "-m", "init")
+	if err := os.WriteFile(tracked, []byte("dirty\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m := newTestModel()
+	m.width = 100
+	m.height = 30
+	m.repoList = []string{repo}
+	m.cursor = 0
+	m.checkoutStatusFileConfirmOpen = true
+	m.checkoutStatusFilePendingRel = "hello.txt"
+	m.deleteConfirmYes = true
+
+	m.handleCheckoutStatusFileConfirmKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.checkoutStatusFileConfirmOpen {
+		t.Fatal("modal should close after confirm")
+	}
+	b, err := os.ReadFile(tracked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "committed\n" {
+		t.Fatalf("file content = %q, want committed version", string(b))
 	}
 }

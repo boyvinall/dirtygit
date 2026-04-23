@@ -18,7 +18,7 @@ const (
 // handleMousePaneResize handles click-drag on pane borders to resize splits.
 // Returns true when the message is consumed.
 func (m *model) handleMousePaneResize(msg tea.MouseMsg) bool {
-	if m.helpOpen || m.deleteRepoConfirmOpen || m.deleteStatusFileConfirmOpen || m.whyRepoOpen || m.scanning || m.err != nil || m.zoomed || m.height < minTermHeight || m.width < 20 {
+	if m.helpOpen || m.deleteRepoConfirmOpen || m.deleteStatusFileConfirmOpen || m.checkoutStatusFileConfirmOpen || m.whyRepoOpen || m.scanning || m.err != nil || m.zoomed || m.height < minTermHeight || m.width < 20 {
 		if msg.Action == tea.MouseActionRelease {
 			m.resizeDrag = resizeNone
 		}
