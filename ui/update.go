@@ -27,12 +27,12 @@ func (m *model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.width = msg.Width
 	m.height = msg.Height
 	if m.logVP.Height == 0 {
-		inner := max(8, msg.Width-4)
-		m.logVP = viewport.New(inner, 8)
+		inner := max(layoutMinInnerContentWidth, msg.Width-4)
+		m.logVP = viewport.New(inner, layoutMinInnerContentWidth)
 	}
 	if m.diffVP.Height == 0 {
-		inner := max(8, msg.Width-4)
-		m.diffVP = viewport.New(inner, 8)
+		inner := max(layoutMinInnerContentWidth, msg.Width-4)
+		m.diffVP = viewport.New(inner, layoutMinInnerContentWidth)
 	}
 	m.syncViewports()
 	return m, nil
@@ -337,54 +337,48 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 		m.openCurrentRepo()
 		return m, nil, true
 	case "w":
-		if m.focus == paneRepo && m.err == nil && len(m.repoList) > 0 {
+		if m.repoPaneReady() {
 			m.whyRepoOpen = true
 			return m, nil, true
 		}
 		return m, nil, false
 	case "D":
-		if m.statusFileSelected && (m.focus == paneStatus || m.focus == paneDiff) {
-			if path := m.selectedStatusPath(); path != "" {
-				m.deleteStatusFileConfirmOpen = true
-				m.deleteStatusFilePendingRel = path
-				m.deleteConfirmYes = false
-				return m, nil, true
-			}
+		if path, ok := m.selectedStatusPathForOps(); ok {
+			m.deleteStatusFileConfirmOpen = true
+			m.deleteStatusFilePendingRel = path
+			m.deleteConfirmYes = false
+			return m, nil, true
 		}
-		if m.focus == paneRepo && m.err == nil && len(m.repoList) > 0 {
+		if m.repoPaneReady() {
 			m.deleteRepoConfirmOpen = true
 			m.deleteConfirmYes = false
 			return m, nil, true
 		}
 		return m, nil, false
 	case "a", "r":
-		if m.statusFileSelected && (m.focus == paneStatus || m.focus == paneDiff) {
-			if path := m.selectedStatusPath(); path != "" {
-				repo := m.currentRepo()
-				var err error
-				if msg.String() == "a" {
-					err = gitAdd(repo, path)
-				} else {
-					err = gitResetPath(repo, path)
-				}
-				if err != nil {
-					log.Printf("git: %v", err)
-				} else {
-					m.refreshRepoStatusAfterGit()
-				}
-				m.diffNeedsRefresh = true
-				m.syncViewports()
-				return m, nil, true
+		if path, ok := m.selectedStatusPathForOps(); ok {
+			repo := m.currentRepo()
+			var err error
+			if msg.String() == "a" {
+				err = gitAdd(repo, path)
+			} else {
+				err = gitResetPath(repo, path)
 			}
+			if err != nil {
+				log.Printf("git: %v", err)
+			} else {
+				m.refreshRepoStatusAfterGit()
+			}
+			m.diffNeedsRefresh = true
+			m.syncViewports()
+			return m, nil, true
 		}
 	case "C":
-		if m.statusFileSelected && (m.focus == paneStatus || m.focus == paneDiff) {
-			if path := m.selectedStatusPath(); path != "" {
-				m.checkoutStatusFileConfirmOpen = true
-				m.checkoutStatusFilePendingRel = path
-				m.deleteConfirmYes = false
-				return m, nil, true
-			}
+		if path, ok := m.selectedStatusPathForOps(); ok {
+			m.checkoutStatusFileConfirmOpen = true
+			m.checkoutStatusFilePendingRel = path
+			m.deleteConfirmYes = false
+			return m, nil, true
 		}
 	default:
 		if helpKey(msg) {
@@ -565,7 +559,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // left-button press. Returns true when the event is consumed (focus changed);
 // otherwise the caller should forward the mouse message as usual.
 func (m *model) handleMouseFocusClick(msg tea.MouseMsg) bool {
-	if m.helpOpen || m.deleteRepoConfirmOpen || m.deleteStatusFileConfirmOpen || m.checkoutStatusFileConfirmOpen || m.whyRepoOpen || m.scanning || m.err != nil || m.height < minTermHeight {
+	if !m.mouseFocusClickReady() {
 		return false
 	}
 	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {

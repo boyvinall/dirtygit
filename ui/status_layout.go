@@ -15,13 +15,13 @@ import (
 
 // autoLayoutBodies returns the default vertical split without user resize prefs.
 func (m *model) autoLayoutBodies() (repoBody, statusBody, diffBody, logBody int) {
-	if m.height < minTermHeight || m.width < 20 {
+	if m.height < layoutMinTermHeight || m.width < layoutMinTermWidth {
 		return 0, 0, 0, 0
 	}
 	if m.zoomed {
 		body := max(
 			// panelOuter(body) == m.height
-			m.height-2, 3)
+			m.height-2, layoutMinBodyLines)
 		switch m.zoomTarget {
 		case paneRepo:
 			return body, 0, 0, 0
@@ -34,24 +34,24 @@ func (m *model) autoLayoutBodies() (repoBody, statusBody, diffBody, logBody int)
 		}
 	}
 	effH := m.height
-	logBody = 4
+	logBody = layoutDefaultLogBodyLines
 	n := len(m.repoList)
 	if n == 0 {
 		n = 1
 	}
 	repoBody = min(n+2, effH/3)
-	repoBody = max(3, repoBody)
+	repoBody = max(layoutMinBodyLines, repoBody)
 
-	available := effH - 8 - repoBody - logBody
-	for available < 6 && logBody > 3 {
+	available := effH - layoutFrameStackOuterRows - repoBody - logBody
+	for available < layoutMinSpareForSplit && logBody > layoutMinBodyLines {
 		logBody--
-		available = effH - 8 - repoBody - logBody
+		available = effH - layoutFrameStackOuterRows - repoBody - logBody
 	}
-	for available < 6 && repoBody > 3 {
+	for available < layoutMinSpareForSplit && repoBody > layoutMinBodyLines {
 		repoBody--
-		available = effH - 8 - repoBody - logBody
+		available = effH - layoutFrameStackOuterRows - repoBody - logBody
 	}
-	if available < 6 {
+	if available < layoutMinSpareForSplit {
 		return 0, 0, 0, 0
 	}
 
@@ -59,7 +59,7 @@ func (m *model) autoLayoutBodies() (repoBody, statusBody, diffBody, logBody int)
 	// Any remainder rows go to Diff to keep it as large as possible.
 	statusBody = available / 4
 	diffBody = available - statusBody
-	if statusBody < 3 || diffBody < 3 || logBody < 3 || repoBody < 3 {
+	if statusBody < layoutMinBodyLines || diffBody < layoutMinBodyLines || logBody < layoutMinBodyLines || repoBody < layoutMinBodyLines {
 		return 0, 0, 0, 0
 	}
 	return repoBody, statusBody, diffBody, logBody
@@ -75,16 +75,16 @@ func (m *model) layoutBodies() (repoBody, statusBody, diffBody, logBody int) {
 	if m.zoomed || !m.layoutUseCustomVertical {
 		return ar, as, ad, al
 	}
-	innerTotal := m.height - 8
+	innerTotal := m.height - layoutFrameStackOuterRows
 	repoBody = m.layoutRepoBody
 	statusBody = m.layoutStatusBody
 	logBody = m.layoutLogBody
-	if repoBody < 3 || statusBody < 3 || logBody < 3 {
+	if repoBody < layoutMinBodyLines || statusBody < layoutMinBodyLines || logBody < layoutMinBodyLines {
 		return ar, as, ad, al
 	}
 	available := innerTotal - repoBody - logBody
 	diffBody = available - statusBody
-	if available < 6 || diffBody < 3 || repoBody < 3 || statusBody < 3 || logBody < 3 {
+	if available < layoutMinSpareForSplit || diffBody < layoutMinBodyLines || repoBody < layoutMinBodyLines || statusBody < layoutMinBodyLines || logBody < layoutMinBodyLines {
 		m.layoutUseCustomVertical = false
 		m.layoutRepoBody, m.layoutStatusBody, m.layoutLogBody = 0, 0, 0
 		return ar, as, ad, al
@@ -100,7 +100,7 @@ func panelOuter(body int) int {
 // paneAtTerminalCell maps a 0-based terminal cell (from Bubble Tea mouse events)
 // to the pane that contains it. It mirrors renderMainStack / renderZoomedPane geometry.
 func (m *model) paneAtTerminalCell(x, y int) (pane, bool) {
-	if m.width <= 0 || m.height < minTermHeight {
+	if m.width <= 0 || m.height < layoutMinTermHeight {
 		return paneRepo, false
 	}
 	if x < 0 || y < 0 || x >= m.width || y >= m.height {
@@ -143,8 +143,8 @@ func (m *model) paneAtTerminalCell(x, y int) (pane, bool) {
 // innerWidth returns content width available inside pane borders.
 func (m *model) innerWidth() int {
 	w := m.width - 4
-	if w < 8 {
-		w = max(8, m.width-2)
+	if w < layoutMinInnerContentWidth {
+		w = max(layoutMinInnerContentWidth, m.width-2)
 	}
 	return w
 }
@@ -153,7 +153,7 @@ func (m *model) innerWidth() int {
 func (m *model) statusBranchesOuterWidths(total int) (statusOuter, branchesOuter int) {
 	if m.layoutBranchesOuter > 0 {
 		bo := m.layoutBranchesOuter
-		bo = max(10, min(bo, total-10))
+		bo = max(layoutMinStatusBranchesColumn, min(bo, total-layoutMinStatusBranchesColumn))
 		return total - bo, bo
 	}
 	// Default: equal outer width (remainder column goes to Branches when odd).
@@ -165,8 +165,8 @@ func (m *model) statusBranchesOuterWidths(total int) (statusOuter, branchesOuter
 // statusBranchesInnerWidths returns table content widths inside each pane's own border.
 func (m *model) statusBranchesInnerWidths() (statusInnerW, branchInnerW int) {
 	statusOuterW, branchesOuterW := m.statusBranchesOuterWidths(m.width)
-	statusInnerW = max(8, statusOuterW-2)
-	branchInnerW = max(8, branchesOuterW-2)
+	statusInnerW = max(layoutMinInnerContentWidth, statusOuterW-2)
+	branchInnerW = max(layoutMinInnerContentWidth, branchesOuterW-2)
 	return statusInnerW, branchInnerW
 }
 
@@ -228,7 +228,7 @@ func newStatusTable() table.Model {
 		table.WithColumns(statusColumns(48)),
 		table.WithRows(nil),
 		table.WithFocused(false),
-		table.WithHeight(6),
+		table.WithHeight(layoutDefaultTableViewRows),
 	)
 	t.SetStyles(statusTableStyles(false))
 	return t
@@ -262,7 +262,7 @@ func newBranchTable() table.Model {
 		table.WithColumns(branchRowColumns(48)),
 		table.WithRows(nil),
 		table.WithFocused(false),
-		table.WithHeight(6),
+		table.WithHeight(layoutDefaultTableViewRows),
 	)
 	return t
 }
@@ -271,8 +271,8 @@ func newBranchTable() table.Model {
 // Bubbles table Header and Cell styles use Padding(0, 1), so each column adds
 // two cells to the rendered row; totals must stay within totalWidth.
 func statusColumns(totalWidth int) []table.Column {
-	stagedWidth := 10
-	worktreeWidth := 10
+	stagedWidth := layoutStatusWorktreeStagedNarrowCol
+	worktreeWidth := layoutStatusWorktreeStagedNarrowCol
 	const cols = 3
 	horizontalPad := 2 * cols
 	pathWidth := max(1, totalWidth-stagedWidth-worktreeWidth-horizontalPad)
@@ -300,7 +300,7 @@ func branchRowColumns(totalWidth int) []table.Column {
 	branchW := max(1, rest/2)
 	remotesW := max(1, rest-branchW)
 	return []table.Column{
-		{Title: "Branch", Width: branchW},
+		{Title: "", Width: branchW},
 		{Title: "Commit", Width: commitW},
 		{Title: "Tip age", Width: tipW},
 		{Title: "Remotes", Width: remotesW},
@@ -385,7 +385,7 @@ func (m *model) refreshBranchContent(totalWidth int) {
 	st, ok := m.repositories[repo]
 	if !ok {
 		m.branchTable.SetRows([]table.Row{{"(select repository)", "-", "-", "-"}})
-		m.branchTable.SetHeight(3)
+		m.branchTable.SetHeight(layoutMinBodyLines)
 		return
 	}
 	branch := st.Branches
@@ -541,6 +541,25 @@ func (m *model) selectedStatusPath() string {
 	return m.statusPaths[i]
 }
 
+// statusFileOpsFocused is true when shortcuts that operate on the selected
+// status row apply (Status or Diff pane with an active file selection).
+func (m *model) statusFileOpsFocused() bool {
+	return m.statusFileSelected && (m.focus == paneStatus || m.focus == paneDiff)
+}
+
+// selectedStatusPathForOps returns the repo-relative path when
+// statusFileOpsFocused holds and a row is selected; otherwise ("", false).
+func (m *model) selectedStatusPathForOps() (path string, ok bool) {
+	if !m.statusFileOpsFocused() {
+		return "", false
+	}
+	path = m.selectedStatusPath()
+	if path == "" {
+		return "", false
+	}
+	return path, true
+}
+
 // statusCodeLabel maps git status codes to human-friendly labels.
 func statusCodeLabel(code git.StatusCode) string {
 	switch code {
@@ -573,6 +592,27 @@ func (m *model) currentRepo() string {
 		return ""
 	}
 	return m.repoList[m.cursor]
+}
+
+// repoPaneReady is true when the Repo pane is focused and the list is usable.
+func (m *model) repoPaneReady() bool {
+	return m.focus == paneRepo && m.err == nil && len(m.repoList) > 0
+}
+
+// interactiveAppReady is true when the main TUI (not a modal) is on screen and idle.
+func (m *model) interactiveAppReady() bool {
+	return !m.helpOpen && !m.deleteRepoConfirmOpen && !m.deleteStatusFileConfirmOpen &&
+		!m.checkoutStatusFileConfirmOpen && !m.whyRepoOpen && !m.scanning && m.err == nil
+}
+
+// mouseFocusClickReady is true when left-click to change pane focus is allowed.
+func (m *model) mouseFocusClickReady() bool {
+	return m.interactiveAppReady() && m.height >= layoutMinTermHeight
+}
+
+// mousePaneResizeReady is true when split border drag-to-resize may run.
+func (m *model) mousePaneResizeReady() bool {
+	return m.interactiveAppReady() && !m.zoomed && m.height >= layoutMinTermHeight && m.width >= layoutMinTermWidth
 }
 
 // borderFor picks a heavier border for the active pane (used by framedBlock).

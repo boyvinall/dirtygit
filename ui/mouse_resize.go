@@ -18,7 +18,7 @@ const (
 // handleMousePaneResize handles click-drag on pane borders to resize splits.
 // Returns true when the message is consumed.
 func (m *model) handleMousePaneResize(msg tea.MouseMsg) bool {
-	if m.helpOpen || m.deleteRepoConfirmOpen || m.deleteStatusFileConfirmOpen || m.checkoutStatusFileConfirmOpen || m.whyRepoOpen || m.scanning || m.err != nil || m.zoomed || m.height < minTermHeight || m.width < 20 {
+	if !m.mousePaneResizeReady() {
 		if msg.Action == tea.MouseActionRelease {
 			m.resizeDrag = resizeNone
 		}
@@ -69,7 +69,7 @@ func (m *model) handleMousePaneResize(msg tea.MouseMsg) bool {
 }
 
 func (m *model) applyResizeDrag(x, y int) {
-	innerTotal := m.height - 8
+	innerTotal := m.height - layoutFrameStackOuterRows
 	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
 	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
 		return
@@ -84,30 +84,30 @@ func (m *model) applyResizeDrag(x, y int) {
 		} else {
 			repoOuter = y
 		}
-		repoOuterMax := m.height - panelOuter(logBody) - 10
-		if repoOuterMax < 5 {
+		repoOuterMax := m.height - panelOuter(logBody) - layoutRepoOuterMaxBottomMargin
+		if repoOuterMax < layoutMinPanelOuter {
 			return
 		}
-		repoOuter = max(5, min(repoOuter, repoOuterMax))
+		repoOuter = max(layoutMinPanelOuter, min(repoOuter, repoOuterMax))
 		repo := repoOuter - 2
-		if repo < 3 {
+		if repo < layoutMinBodyLines {
 			return
 		}
 		available := innerTotal - repo - logBody
-		if available < 6 {
+		if available < layoutMinSpareForSplit {
 			return
 		}
 		st := statusBody
 		di := available - st
-		if di < 3 {
-			di = 3
+		if di < layoutMinBodyLines {
+			di = layoutMinBodyLines
 			st = available - di
 		}
-		if st < 3 {
-			st = 3
+		if st < layoutMinBodyLines {
+			st = layoutMinBodyLines
 			di = available - st
 		}
-		if di < 3 || st < 3 {
+		if di < layoutMinBodyLines || st < layoutMinBodyLines {
 			return
 		}
 		m.layoutUseCustomVertical = true
@@ -125,17 +125,17 @@ func (m *model) applyResizeDrag(x, y int) {
 			statusOuter = y - repoOuter
 		}
 		statusOuterMax := innerTotal - repoBody - logBody - 1
-		if statusOuterMax < 5 {
+		if statusOuterMax < layoutMinPanelOuter {
 			return
 		}
-		statusOuter = max(5, min(statusOuter, statusOuterMax))
+		statusOuter = max(layoutMinPanelOuter, min(statusOuter, statusOuterMax))
 		status := statusOuter - 2
-		if status < 3 {
+		if status < layoutMinBodyLines {
 			return
 		}
 		available := innerTotal - repoBody - logBody
 		diff := available - status
-		if diff < 3 {
+		if diff < layoutMinBodyLines {
 			return
 		}
 		m.layoutUseCustomVertical = true
@@ -147,8 +147,9 @@ func (m *model) applyResizeDrag(x, y int) {
 		repoOuter := panelOuter(repoBody)
 		y0 := repoOuter + panelOuter(statusBody)
 		prevDiffOuter := panelOuter(diffBody)
-		maxDiffOuter := m.height - repoOuter - panelOuter(statusBody) - panelOuter(3)
-		if maxDiffOuter < panelOuter(3) {
+		minLogOuter := panelOuter(layoutMinBodyLines)
+		maxDiffOuter := m.height - repoOuter - panelOuter(statusBody) - minLogOuter
+		if maxDiffOuter < minLogOuter {
 			return
 		}
 		var diffOuter int
@@ -157,10 +158,10 @@ func (m *model) applyResizeDrag(x, y int) {
 		} else {
 			diffOuter = y - y0
 		}
-		diffOuter = max(panelOuter(3), min(diffOuter, maxDiffOuter))
+		diffOuter = max(minLogOuter, min(diffOuter, maxDiffOuter))
 		diff := diffOuter - 2
 		log := innerTotal - repoBody - statusBody - diff
-		if log < 3 {
+		if log < layoutMinBodyLines {
 			return
 		}
 		m.layoutUseCustomVertical = true
@@ -169,19 +170,18 @@ func (m *model) applyResizeDrag(x, y int) {
 		m.layoutLogBody = log
 
 	case resizeStatusBranches:
-		if m.width < 20 {
+		if m.width < layoutMinTermWidth {
 			return
 		}
 		statusOuter := x
 		branches := m.width - statusOuter
-		const minSide = 10
-		if branches < minSide {
-			branches = minSide
+		if branches < layoutMinStatusBranchesColumn {
+			branches = layoutMinStatusBranchesColumn
 		}
-		if branches > m.width-minSide {
-			branches = m.width - minSide
+		if branches > m.width-layoutMinStatusBranchesColumn {
+			branches = m.width - layoutMinStatusBranchesColumn
 		}
-		if branches < minSide || branches > m.width-minSide {
+		if branches < layoutMinStatusBranchesColumn || branches > m.width-layoutMinStatusBranchesColumn {
 			return
 		}
 		m.layoutBranchesOuter = branches
@@ -226,5 +226,5 @@ func nearInt(a, b int) bool {
 	if d < 0 {
 		d = -d
 	}
-	return d <= 1
+	return d <= mouseBorderHitSlop
 }

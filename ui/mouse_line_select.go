@@ -44,7 +44,7 @@ func statusTableHeaderLines(t table.Model) int {
 
 // repoPaneOuterHeight returns the framed repo pane height in terminal rows.
 func (m *model) repoPaneOuterHeight() (outerH int, ok bool) {
-	if m.height < minTermHeight || m.width < 20 {
+	if m.height < layoutMinTermHeight || m.width < layoutMinTermWidth {
 		return 0, false
 	}
 	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
@@ -63,7 +63,7 @@ func (m *model) repoPaneOuterHeight() (outerH int, ok bool) {
 // statusPaneFrame returns the top Y of the status pane, its outer height, and
 // outer width (for hit-testing X). The status column always starts at x=0.
 func (m *model) statusPaneFrame() (topY, outerH, outerW int, ok bool) {
-	if m.height < minTermHeight || m.width < 20 {
+	if m.height < layoutMinTermHeight || m.width < layoutMinTermWidth {
 		return 0, 0, 0, false
 	}
 	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
@@ -86,7 +86,7 @@ func (m *model) statusPaneFrame() (topY, outerH, outerW int, ok bool) {
 // status pane is already focused. Returns (true, cmd) when the click is
 // handled; cmd may schedule deferred work (e.g. git diff for a new repo).
 func (m *model) handleMousePaneLineSelect(msg tea.MouseMsg) (bool, tea.Cmd) {
-	if m.helpOpen || m.deleteRepoConfirmOpen || m.deleteStatusFileConfirmOpen || m.checkoutStatusFileConfirmOpen || m.whyRepoOpen || m.scanning || m.err != nil {
+	if !m.interactiveAppReady() {
 		return false, nil
 	}
 	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {

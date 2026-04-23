@@ -47,10 +47,10 @@ func scanProgressBar(width, checked, found int) string {
 
 // shortenScanPath truncates long scan paths from the left.
 func shortenScanPath(path string, max int) string {
-	if max < 8 || path == "" || len(path) <= max {
+	if max < layoutMinInnerContentWidth || path == "" || len(path) <= max {
 		return path
 	}
-	return "…" + path[len(path)-(max-3):]
+	return "…" + path[len(path)-(max-layoutPathTruncationEllipsis):]
 }
 
 // scanModalInnerLines is the fixed content row count inside the scan popup (excluding border/padding).
@@ -67,12 +67,12 @@ func truncateASCII(s string, max int) string {
 // scanProgressPopup renders the centered modal shown while scanning.
 func (m *model) scanProgressPopup() string {
 	p := m.scanProgress
-	boxW := min(m.width-6, 64)
-	if boxW < 20 {
-		boxW = min(m.width-2, 20)
+	boxW := min(m.width-layoutModalSideGutter, layoutScanProgressModalMaxBox)
+	if boxW < layoutModalBoxMinWidth {
+		boxW = min(m.width-2, layoutModalBoxMinWidth)
 	}
 	// Inner text width: border (2) + horizontal padding (4) is a safe shave from boxW.
-	innerW := max(8, boxW-6)
+	innerW := max(layoutMinInnerContentWidth, boxW-layoutModalSideGutter)
 	bar := scanProgressBar(innerW, p.ReposChecked, max(p.ReposFound, 1))
 
 	line := fmt.Sprintf("Found %d repo(s)  ·  checked git status %d", p.ReposFound, p.ReposChecked)
@@ -135,7 +135,7 @@ func (m *model) helpPanel() string {
 	body := strings.Join(lines, "\n")
 	w, h := m.width, m.height
 	if h < 1 {
-		h = minTermHeight
+		h = layoutMinTermHeight
 	}
 	innerW := max(1, w-2)
 	innerH := max(1, h-2)
@@ -148,11 +148,11 @@ func (m *model) helpPanel() string {
 // renderWhyInclusionOverlay shows why the selected repository appears in the list.
 func (m *model) renderWhyInclusionOverlay() string {
 	repo := m.currentRepo()
-	boxW := min(m.width-6, 72)
-	if boxW < 20 {
-		boxW = min(m.width-2, 20)
+	boxW := min(m.width-layoutModalSideGutter, layoutWhyAndConfirmModalMaxBox)
+	if boxW < layoutModalBoxMinWidth {
+		boxW = min(m.width-2, layoutModalBoxMinWidth)
 	}
-	innerW := max(8, boxW-6)
+	innerW := max(layoutMinInnerContentWidth, boxW-layoutModalSideGutter)
 	if repo == "" {
 		return m.placeCenteredDimModal(roundedModal(boxW).Render("No repository selected."))
 	}
@@ -176,11 +176,11 @@ func (m *model) renderWhyInclusionOverlay() string {
 // renderDeleteRepoConfirmOverlay asks whether to recursively delete the selected repository directory.
 func (m *model) renderDeleteRepoConfirmOverlay() string {
 	repo := m.currentRepo()
-	boxW := min(m.width-6, 72)
-	if boxW < 20 {
-		boxW = min(m.width-2, 20)
+	boxW := min(m.width-layoutModalSideGutter, layoutWhyAndConfirmModalMaxBox)
+	if boxW < layoutModalBoxMinWidth {
+		boxW = min(m.width-2, layoutModalBoxMinWidth)
 	}
-	innerW := max(8, boxW-6)
+	innerW := max(layoutMinInnerContentWidth, boxW-layoutModalSideGutter)
 	if repo == "" {
 		return m.placeCenteredDimModal(roundedModal(boxW).Render("No repository selected."))
 	}
@@ -195,11 +195,11 @@ func (m *model) renderDeleteRepoConfirmOverlay() string {
 // renderDeleteStatusFileConfirmOverlay asks before deleting the selected status path from disk.
 func (m *model) renderDeleteStatusFileConfirmOverlay() string {
 	repo := m.currentRepo()
-	boxW := min(m.width-6, 72)
-	if boxW < 20 {
-		boxW = min(m.width-2, 20)
+	boxW := min(m.width-layoutModalSideGutter, layoutWhyAndConfirmModalMaxBox)
+	if boxW < layoutModalBoxMinWidth {
+		boxW = min(m.width-2, layoutModalBoxMinWidth)
 	}
-	innerW := max(8, boxW-6)
+	innerW := max(layoutMinInnerContentWidth, boxW-layoutModalSideGutter)
 	if repo == "" || m.deleteStatusFilePendingRel == "" {
 		return m.placeCenteredDimModal(roundedModal(boxW).Render("Nothing to delete."))
 	}
@@ -224,11 +224,11 @@ func (m *model) renderDeleteStatusFileConfirmOverlay() string {
 // renderCheckoutStatusFileConfirmOverlay asks before discarding local changes with git checkout HEAD -- path.
 func (m *model) renderCheckoutStatusFileConfirmOverlay() string {
 	repo := m.currentRepo()
-	boxW := min(m.width-6, 72)
-	if boxW < 20 {
-		boxW = min(m.width-2, 20)
+	boxW := min(m.width-layoutModalSideGutter, layoutWhyAndConfirmModalMaxBox)
+	if boxW < layoutModalBoxMinWidth {
+		boxW = min(m.width-2, layoutModalBoxMinWidth)
 	}
-	innerW := max(8, boxW-6)
+	innerW := max(layoutMinInnerContentWidth, boxW-layoutModalSideGutter)
 	if repo == "" || m.checkoutStatusFilePendingRel == "" {
 		return m.placeCenteredDimModal(roundedModal(boxW).Render("Nothing to restore."))
 	}
@@ -424,7 +424,7 @@ func (m *model) renderMainStack(repoBody, statusBody, diffBody, logBody int) str
 
 // renderErrorOverlay shows an error dialog with recovery hints.
 func (m *model) renderErrorOverlay() string {
-	errW := min(m.width-4, 80)
+	errW := min(m.width-layoutErrorOverlayHPad, layoutErrorOverlayMaxWidth)
 	errBox := errorDoubleBox(errW).Render("Error\n\n" + m.err.Error() + "\n\n(s to rescan, q to quit)")
 	return m.placeCenteredPlain(errBox)
 }
@@ -449,8 +449,8 @@ func (m *model) View() string {
 	if m.whyRepoOpen {
 		return m.renderWhyInclusionOverlay()
 	}
-	if m.height < minTermHeight {
-		return styleErr.Render("Need bigger screen (min height 22).")
+	if m.height < layoutMinTermHeight {
+		return styleErr.Render(fmt.Sprintf("Need bigger screen (min height %d).", layoutMinTermHeight))
 	}
 	if m.scanning {
 		return m.renderScanOverlay()

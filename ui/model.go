@@ -22,8 +22,6 @@ const (
 	paneLog
 )
 
-const minTermHeight = 22
-
 // tickMsg drives periodic polling while scans are running.
 type tickMsg struct{}
 
