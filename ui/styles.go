@@ -6,28 +6,28 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// --- Shared palette (ANSI 256) ---
+// --- Shared palette ---
 
 var (
-	styleDim       = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	styleDim       = lipgloss.NewStyle().Foreground(lipgloss.Color("#626262"))
 	styleBold      = lipgloss.NewStyle().Bold(true)
-	styleErr       = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-	styleAccentLbl = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true)
-	styleDiffMode  = lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Bold(true)
+	styleErr       = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
+	styleAccentLbl = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFF55")).Bold(true)
+	styleDiffMode  = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FFFF")).Bold(true)
 	stylePlain     = lipgloss.NewStyle()
-	styleScanSpin  = lipgloss.NewStyle().Foreground(lipgloss.Color("159"))
+	styleScanSpin  = lipgloss.NewStyle().Foreground(lipgloss.Color("#AFFFFF"))
 
-	styleSelRowFocused = lipgloss.NewStyle().Background(lipgloss.Color("42")).Foreground(lipgloss.Color("0"))
-	styleSelRowBlurred = lipgloss.NewStyle().Background(lipgloss.Color("248")).Foreground(lipgloss.Color("0"))
+	styleSelRowFocused = lipgloss.NewStyle().Background(lipgloss.Color("#00D787")).Foreground(lipgloss.Color("#000000"))
+	styleSelRowBlurred = lipgloss.NewStyle().Background(lipgloss.Color("#A8A8A8")).Foreground(lipgloss.Color("#000000"))
 
-	styleDeleteChoiceHL = lipgloss.NewStyle().Background(lipgloss.Color("160")).Foreground(lipgloss.Color("230"))
+	styleDeleteChoiceHL = lipgloss.NewStyle().Background(lipgloss.Color("#D70000")).Foreground(lipgloss.Color("#FFFFD7"))
 )
 
 // roundedModal returns the standard info / overlay box (cyan border).
 func roundedModal(width int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("39")).
+		BorderForeground(lipgloss.Color("#00AFFF")).
 		Width(width).
 		Padding(1, 2)
 }
@@ -36,7 +36,7 @@ func roundedModal(width int) lipgloss.Style {
 func errorDoubleBox(width int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Border(lipgloss.DoubleBorder()).
-		BorderForeground(lipgloss.Color("9")).
+		BorderForeground(lipgloss.Color("#FF5555")).
 		Width(width).
 		Padding(1, 2)
 }
@@ -45,12 +45,12 @@ func errorDoubleBox(width int) lipgloss.Style {
 func placeSpace(width, height int, ha, va lipgloss.Position, content string) string {
 	return lipgloss.Place(width, height, ha, va, content,
 		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("0")))
+		lipgloss.WithWhitespaceForeground(lipgloss.Color("#000000")))
 }
 
 // warnBlock is a full-width red warning paragraph inside a modal.
 func warnBlock(innerW int) lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Width(innerW).MaxWidth(innerW)
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555")).Width(innerW).MaxWidth(innerW)
 }
 
 // tableSelectedRow matches repo-list greens/greys but keeps the status table bold.
@@ -89,12 +89,12 @@ func focusedSectionTitle(focused bool, label string) string {
 
 // diff line styles for git output (see styleDiffContent).
 var (
-	diffStyleAdded   = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	diffStyleDeleted = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-	diffStyleHunk    = lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
-	diffStyleHeader  = lipgloss.NewStyle().Foreground(lipgloss.Color("141")).Bold(true)
-	diffStyleFile    = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
-	diffStyleMeta    = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	diffStyleAdded   = lipgloss.NewStyle().Foreground(lipgloss.Color("#00D787"))
+	diffStyleDeleted = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
+	diffStyleHunk    = lipgloss.NewStyle().Foreground(lipgloss.Color("#00AFFF")).Bold(true)
+	diffStyleHeader  = lipgloss.NewStyle().Foreground(lipgloss.Color("#AF87FF")).Bold(true)
+	diffStyleFile    = lipgloss.NewStyle().Foreground(lipgloss.Color("#5F87FF"))
+	diffStyleMeta    = lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
 )
 
 // diffPaneTopBorderLabel builds the Diff pane top-border title segment.
