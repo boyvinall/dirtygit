@@ -139,7 +139,8 @@ func (m *model) helpPanel() string {
 		"s             Scan / rescan",
 		"e             Open selected repository (edit.command in config)",
 		"w             Repositories focused: why this repository is in the list",
-		"D             Repositories focused: delete directory (with confirmation)",
+		"D             Repo list: delete the repository directory (confirm)",
+		"              Status or Diff with a file row: delete that path under the repo (confirm)",
 		"q  Ctrl+C     Quit (works from this overlay too)",
 		"?  h          Toggle this help (also closes with ? or h)",
 		"",
@@ -226,6 +227,56 @@ func (m *model) renderDeleteRepoConfirmOverlay() string {
 	btns := lipgloss.JoinHorizontal(lipgloss.Left, yesBtn, "  ", noBtn)
 	foot := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("←/→ or y/n · Enter to confirm · Esc to cancel")
 	inner := strings.Join([]string{t, "", pathLine, "", warn, "", btns, "", foot}, "\n")
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("39")).
+		Width(boxW).
+		Padding(1, 2).
+		Render(inner)
+	return m.placeCenteredDimModal(box)
+}
+
+// renderDeleteStatusFileConfirmOverlay asks before deleting the selected status path from disk.
+func (m *model) renderDeleteStatusFileConfirmOverlay() string {
+	repo := m.currentRepo()
+	boxW := min(m.width-6, 72)
+	if boxW < 20 {
+		boxW = min(m.width-2, 20)
+	}
+	innerW := max(8, boxW-6)
+	if repo == "" || m.deleteStatusFilePendingRel == "" {
+		box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("39")).Width(boxW).Padding(1, 2).Render("Nothing to delete.")
+		return m.placeCenteredDimModal(box)
+	}
+	absPath, err := statusPathUnderRepo(repo, m.deleteStatusFilePendingRel)
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	repoLine := dim.Render(truncateASCII(repo, innerW))
+	relLine := dim.Render(truncateASCII(m.deleteStatusFilePendingRel, innerW))
+	t := lipgloss.NewStyle().Bold(true).Render("Delete this file or directory from disk?")
+	warn := lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Width(innerW).MaxWidth(innerW).Render("This removes the path from your working tree (not only from git's index). This cannot be undone.")
+	if err != nil {
+		warn = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Width(innerW).MaxWidth(innerW).Render(fmt.Sprintf("Invalid path: %v", err))
+	}
+
+	hlYes := lipgloss.NewStyle().Background(lipgloss.Color("160")).Foreground(lipgloss.Color("230"))
+	hlNo := lipgloss.NewStyle().Background(lipgloss.Color("160")).Foreground(lipgloss.Color("230"))
+	plain := lipgloss.NewStyle()
+	var yesBtn, noBtn string
+	if m.deleteConfirmYes {
+		yesBtn = hlYes.Render(" Yes ")
+		noBtn = plain.Render(" No ")
+	} else {
+		yesBtn = plain.Render(" Yes ")
+		noBtn = hlNo.Render(" No ")
+	}
+	btns := lipgloss.JoinHorizontal(lipgloss.Left, yesBtn, "  ", noBtn)
+	foot := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("←/→ or y/n · Enter to confirm · Esc to cancel")
+	parts := []string{t, "", "Repository", repoLine, "", "Path (in repo)", relLine}
+	if err == nil {
+		parts = append(parts, "", "Full path", dim.Render(truncateASCII(absPath, innerW)))
+	}
+	parts = append(parts, "", warn, "", btns, "", foot)
+	inner := strings.Join(parts, "\n")
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("39")).
@@ -433,6 +484,9 @@ func (m *model) View() string {
 	}
 	if m.deleteRepoConfirmOpen {
 		return m.renderDeleteRepoConfirmOverlay()
+	}
+	if m.deleteStatusFileConfirmOpen {
+		return m.renderDeleteStatusFileConfirmOverlay()
 	}
 	if m.whyRepoOpen {
 		return m.renderWhyInclusionOverlay()

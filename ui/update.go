@@ -144,6 +144,56 @@ func (m *model) handleDeleteRepoConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 	}
 }
 
+// handleDeleteStatusFileConfirmKey processes keys while the delete-status-file confirmation is open.
+func (m *model) handleDeleteStatusFileConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "esc":
+		m.deleteStatusFileConfirmOpen = false
+		m.deleteStatusFilePendingRel = ""
+		return m, nil
+	case "n":
+		m.deleteConfirmYes = false
+		return m, nil
+	case "y":
+		m.deleteConfirmYes = true
+		return m, nil
+	case "left", "h":
+		m.deleteConfirmYes = false
+		return m, nil
+	case "right", "l":
+		m.deleteConfirmYes = true
+		return m, nil
+	case "enter":
+		m.deleteStatusFileConfirmOpen = false
+		pending := m.deleteStatusFilePendingRel
+		m.deleteStatusFilePendingRel = ""
+		if !m.deleteConfirmYes {
+			return m, nil
+		}
+		m.deletePendingStatusFileFromDisk(pending)
+		return m, nil
+	default:
+		return m, nil
+	}
+}
+
+// deletePendingStatusFileFromDisk removes the given repo-relative path after confirmation.
+func (m *model) deletePendingStatusFileFromDisk(gitRelPath string) {
+	repo := m.currentRepo()
+	if repo == "" || gitRelPath == "" {
+		return
+	}
+	if err := removeStatusPathOnDisk(repo, gitRelPath); err != nil {
+		log.Printf("remove status path: %v", err)
+		return
+	}
+	m.refreshRepoStatusAfterGit()
+	m.diffNeedsRefresh = true
+	m.syncViewports()
+}
+
 // deleteSelectedRepoFromDisk runs os.RemoveAll on the selected repository path and
 // updates list state. Logs failures; on success the entry is removed from the UI.
 func (m *model) deleteSelectedRepoFromDisk() {
@@ -251,6 +301,14 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 		}
 		return m, nil, false
 	case "D":
+		if m.statusFileSelected && (m.focus == paneStatus || m.focus == paneDiff) {
+			if path := m.selectedStatusPath(); path != "" {
+				m.deleteStatusFileConfirmOpen = true
+				m.deleteStatusFilePendingRel = path
+				m.deleteConfirmYes = false
+				return m, nil, true
+			}
+		}
 		if m.focus == paneRepo && m.err == nil && len(m.repoList) > 0 {
 			m.deleteRepoConfirmOpen = true
 			m.deleteConfirmYes = false
@@ -430,6 +488,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.deleteRepoConfirmOpen {
 		return m.handleDeleteRepoConfirmKey(msg)
 	}
+	if m.deleteStatusFileConfirmOpen {
+		return m.handleDeleteStatusFileConfirmKey(msg)
+	}
 	if m.whyRepoOpen {
 		return m.handleWhyRepoOverlayKey(msg)
 	}
@@ -450,7 +511,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // left-button press. Returns true when the event is consumed (focus changed);
 // otherwise the caller should forward the mouse message as usual.
 func (m *model) handleMouseFocusClick(msg tea.MouseMsg) bool {
-	if m.helpOpen || m.deleteRepoConfirmOpen || m.whyRepoOpen || m.scanning || m.err != nil || m.height < minTermHeight {
+	if m.helpOpen || m.deleteRepoConfirmOpen || m.deleteStatusFileConfirmOpen || m.whyRepoOpen || m.scanning || m.err != nil || m.height < minTermHeight {
 		return false
 	}
 	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {

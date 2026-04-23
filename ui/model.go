@@ -118,6 +118,10 @@ type model struct {
 	whyRepoOpen bool
 	// deleteRepoConfirmOpen shows the recursive-delete confirmation for the selected repository path.
 	deleteRepoConfirmOpen bool
+	// deleteStatusFileConfirmOpen asks before deleting the selected status path from disk.
+	deleteStatusFileConfirmOpen bool
+	// deleteStatusFilePendingRel is the repo-relative path pending confirmation (git status form).
+	deleteStatusFilePendingRel string
 	// deleteConfirmYes is true when "Yes" is highlighted; default is false ("No" highlighted).
 	deleteConfirmYes bool
 

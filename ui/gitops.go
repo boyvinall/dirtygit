@@ -3,7 +3,9 @@ package ui
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/boyvinall/dirtygit/scanner"
@@ -41,6 +43,42 @@ func gitAdd(repo, path string) error {
 		return err
 	}
 	return nil
+}
+
+// statusPathUnderRepo resolves a git status path (slash-separated, relative to the repository
+// root) to an absolute filesystem path that must remain inside the repository directory.
+func statusPathUnderRepo(repo, gitRelPath string) (string, error) {
+	if repo == "" || strings.TrimSpace(gitRelPath) == "" {
+		return "", fmt.Errorf("empty repo or path")
+	}
+	absRepo, err := filepath.Abs(repo)
+	if err != nil {
+		return "", err
+	}
+	rel := filepath.FromSlash(strings.TrimSpace(gitRelPath))
+	rel = strings.TrimPrefix(rel, string(filepath.Separator))
+	if rel == "" || rel == "." {
+		return "", fmt.Errorf("invalid path")
+	}
+	joined := filepath.Join(absRepo, rel)
+	cleaned := filepath.Clean(joined)
+	outRel, err := filepath.Rel(absRepo, cleaned)
+	if err != nil {
+		return "", err
+	}
+	if outRel == ".." || strings.HasPrefix(outRel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path escapes repository")
+	}
+	return cleaned, nil
+}
+
+// removeStatusPathOnDisk deletes a repo-relative path from the working tree using os.RemoveAll.
+func removeStatusPathOnDisk(repo, gitRelPath string) error {
+	abs, err := statusPathUnderRepo(repo, gitRelPath)
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(abs)
 }
 
 func gitResetPath(repo, path string) error {

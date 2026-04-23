@@ -2,6 +2,7 @@ package ui
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -407,5 +408,69 @@ func TestDeleteRepoDKey(t *testing.T) {
 	_, _, handled2 := m2.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
 	if handled2 {
 		t.Fatal("d with status pane focused should not be handled as delete command")
+	}
+}
+
+// TestDeleteStatusFileDKey checks D with a status row selected opens file-delete confirmation.
+func TestDeleteStatusFileDKey(t *testing.T) {
+	m := newTestModel()
+	m.width = 100
+	m.height = 30
+	m.repoList = []string{"/repo"}
+	m.cursor = 0
+	m.focus = paneStatus
+	m.statusFileSelected = true
+	m.statusPaths = []string{"foo/bar.txt"}
+	m.statusTable.SetRows([]table.Row{{"-", "?", "foo/bar.txt"}})
+	m.statusTable.SetCursor(0)
+
+	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'D'}})
+	if !handled {
+		t.Fatal("D should be handled with status file selected")
+	}
+	if !m.deleteStatusFileConfirmOpen {
+		t.Fatal("D should open status file delete confirmation")
+	}
+	if m.deleteStatusFilePendingRel != "foo/bar.txt" {
+		t.Fatalf("pending rel = %q", m.deleteStatusFilePendingRel)
+	}
+	overlay := m.renderDeleteStatusFileConfirmOverlay()
+	if !strings.Contains(overlay, "Delete this file or directory") {
+		t.Fatalf("overlay title missing: %q", overlay)
+	}
+	if !strings.Contains(overlay, "foo/bar.txt") {
+		t.Fatalf("overlay should show relative path: %q", overlay)
+	}
+
+	mod, _ := m.handleDeleteStatusFileConfirmKey(tea.KeyMsg{Type: tea.KeyEsc})
+	if mod.(*model).deleteStatusFileConfirmOpen {
+		t.Fatal("esc should close modal")
+	}
+}
+
+// TestDeleteStatusFileConfirmRemovesPath verifies Yes + Enter deletes under repo base.
+func TestDeleteStatusFileConfirmRemovesPath(t *testing.T) {
+	repo := t.TempDir()
+	subDir := filepath.Join(repo, "delme")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(subDir, "x.txt")
+	if err := os.WriteFile(target, []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m := newTestModel()
+	m.width = 100
+	m.height = 30
+	m.repoList = []string{repo}
+	m.cursor = 0
+	m.deleteStatusFileConfirmOpen = true
+	m.deleteStatusFilePendingRel = "delme/x.txt"
+	m.deleteConfirmYes = true
+
+	m.handleDeleteStatusFileConfirmKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatalf("file should be removed, stat err=%v", err)
 	}
 }
