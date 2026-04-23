@@ -4,8 +4,8 @@
 
 - Scans a whole bunch of directories looking for git repos
 - Shows you only the ones that seem to be somehow dirty, i.e. one of:
-  - It has uncommitted file
-  - It has local branches that don't match remote branches
+  - It has uncommitted changes in the working tree and/or index (after your config’s extra ignores)
+  - It has local branches whose tips do not match every configured remote (or other branch-pane rules)
 
 ## Why is this useful?
 
@@ -28,10 +28,13 @@ From a clone of this repository:
 go install .
 ```
 
+Building from source needs a recent **Go** toolchain (see `go` version in [go.mod](go.mod)).
+
 ## Configuration
 
-Copy [.dirtygit.yml](.dirtygit.yml) to `~/.dirtygit.yml` and edit to your needs.
-Environment variables in paths are expanded. Options include:
+If `~/.dirtygit.yml` (or the path you pass with `--config` / `-c`) does not exist, the binary loads an **embedded default** (the same shape as [.dirtygit.yml](.dirtygit.yml) in this repo). Copy that file to your home directory and edit it to customize; environment variables in paths are expanded.
+
+Options include:
 
 | Area                           | Purpose                                                                                                         |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
@@ -80,11 +83,14 @@ lists dirty files with **Worktree** and **Staged** columns (same left-to-right
 order as the Diff pane). The Diff pane runs `git diff` with basic colorization;
 use **←** / **→** in Status or Diff to switch between **Worktree** and **Staged** views.
 With a file row selected, **a** runs `git add` and **r** runs `git reset` (unstage) on
-that path (from the Status or Diff pane), then the current repo is refreshed.
+that path (from the Status or Diff pane), then the current repo is refreshed. **C**
+asks for confirmation, then runs `git checkout HEAD -- <path>` to restore that path to
+the last commit (discards unstaged work for tracked files).
 
 With **Repositories** focused, **w** opens a short explanation of why the current repo
-is listed, and **D** asks to recursively **delete** that directory on disk (with
-confirmation). Both are for housekeeping local clones you no longer need.
+is listed. **D** asks to recursively **delete** either the whole selected repository
+directory (repo list, Repositories pane) or the selected file path under the repo
+(Status or Diff with a file row selected), each with confirmation.
 
 The **Branches** pane lists local branches that need attention: tips that do not
 match every configured remote, missing same-named remote refs, or branches listed
@@ -103,18 +109,20 @@ compresses each remote into a short status (`ok`, `missing`, `differs`, or
 | `Shift+↑` / `Shift+↓` | Same, in steps of 10 lines                                                                                                                                                           |
 | `←` / `→`             | In Status or Diff: Worktree vs Staged diff                                                                                                                                           |
 | `a` / `r`             | With a status file row selected (Status or Diff): `git add` / `git reset` that path                                                                                                  |
+| `C`                   | With a status file row selected (Status or Diff): confirm, then `git checkout HEAD --` that path (restore to last commit)                                                            |
 | `s`                   | Scan or rescan                                                                                                                                                                       |
 | `e`                   | Open the selected repo using `edit.command` from config                                                                                                                              |
 | `w`                   | With Repositories focused: why this repository is in the list                                                                                                                        |
-| `D`                   | With Repositories focused: delete that directory (asks for confirmation)                                                                                                             |
+| `D`                   | Repositories: delete that repo directory; Status or Diff with a file row: delete that path under the repo (each confirms)                                                            |
 | `q` / `Ctrl+C`        | Quit                                                                                                                                                                                 |
 | `?` / `h`             | Show help (`Esc`, `?`, or `h` closes the overlay; `q` / `Ctrl+C` still quit)                                                                                                         |
 
 ## Development
 
 ```bash
-make lint
+make lint   # requires golangci-lint on PATH
 make test
+make build  # writes ./dirtygit
 ```
 
 ## Future
