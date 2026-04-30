@@ -47,6 +47,14 @@ mv dirtygit /usr/local/bin/
 
 On Windows, extract the `.tar.gz` and move `dirtygit.exe` to a directory in your `%PATH%`.
 
+**macOS:** Pre-built binaries from the Homebrew cask and GitHub releases are **not code-signed** yet.
+When you first run `dirtygit`, macOS may refuse to open it or show an “unidentified developer” warning.
+
+Use **System Settings → Privacy & Security** and click **Open Anyway** for `dirtygit`, or right-click the
+binary in Finder and choose **Open** once.
+
+To avoid that workflow, install from source as mentiomed below.
+
 ### Source
 
 Alternatively, if you have a recent [Go](https://go.dev/) toolchain, you can build/install the latest release
