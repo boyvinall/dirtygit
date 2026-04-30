@@ -28,7 +28,7 @@ func TestDiffPaneBorderTitle(t *testing.T) {
 	m.focus = paneDiff
 	m.diffMode = diffModeWorktree
 	foc := m.diffPaneBorderTitle()
-	if !strings.Contains(foc, "Diff\x1b[0m") || !strings.Contains(foc, "93mDiff") {
+	if !strings.Contains(foc, "Diff\x1b[0m") || strings.Count(foc, "38;5;227m") < 1 {
 		t.Fatalf("diff pane focus should emphasize Diff, got %q", foc)
 	}
 }
