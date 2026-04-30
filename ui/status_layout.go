@@ -176,6 +176,17 @@ func (m *model) syncViewports() {
 	m.applyViewportAndPanes(true)
 }
 
+// setLogVPContent refreshes the log viewport from the buffer. If the view was
+// already at the bottom, it stays pinned so new log lines stay visible; if the
+// user has scrolled up, the scroll position is preserved.
+func (m *model) setLogVPContent() {
+	wasAtBottom := m.logVP.AtBottom()
+	m.logVP.SetContent(m.logBuf.String())
+	if wasAtBottom {
+		m.logVP.GotoBottom()
+	}
+}
+
 // applyViewportAndPanes resizes panes and refreshes status, branches, log, and
 // repo scroll. If syncDiff is true, it runs refreshDiffContent (git diff).
 // If false, it defers the diff: when diffNeedsRefresh, the diff pane shows
@@ -208,7 +219,7 @@ func (m *model) applyViewportAndPanes(syncDiff bool) {
 		m.diffContent = "(Loading diff…)"
 	}
 	m.diffVP.SetContent(m.diffContent)
-	m.logVP.SetContent(m.logBuf.String())
+	m.setLogVPContent()
 	m.clampRepoScroll(repoBody)
 }
 

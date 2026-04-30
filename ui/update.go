@@ -299,6 +299,7 @@ func (m *model) cycleFocus(forward bool) {
 
 // handleCommandKey handles global command keys and focus controls.
 func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	log.Println("handleCommandKey", msg.String())
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit, true
@@ -461,7 +462,7 @@ func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 			return m, cmd, true
 		}
 		if m.focus == paneLog {
-			m.logVP.SetContent(m.logBuf.String())
+			m.setLogVPContent()
 			if step == listKeyScrollPage {
 				if up {
 					m.logVP.ScrollUp(listKeyScrollPage)

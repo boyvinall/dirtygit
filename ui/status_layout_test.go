@@ -289,6 +289,39 @@ func TestSyncViewportsSetsDimensions(t *testing.T) {
 	}
 }
 
+// TestSetLogVPContentStickyBottom pins the log to the latest line when already at
+// the bottom, and does not move the view when the user has scrolled up.
+func TestSetLogVPContentStickyBottom(t *testing.T) {
+	m := newTestModel()
+	m.logVP.Height = 3
+	m.logVP.Width = 20
+	for i := range 10 {
+		fmt.Fprintf(m.logBuf, "line %d\n", i)
+	}
+	// Prime content without sticky pin: empty viewport reports AtBottom() so the
+	// first setLogVPContent would jump to bottom before we can assert overflow.
+	m.logVP.SetContent(m.logBuf.String())
+	if m.logVP.AtBottom() {
+		t.Fatal("overflowing log should not read as AtBottom while YOffset is 0")
+	}
+	m.logVP.GotoBottom()
+	if !m.logVP.AtBottom() {
+		t.Fatal("after GotoBottom want AtBottom")
+	}
+	fmt.Fprintf(m.logBuf, "new tail line\n")
+	m.setLogVPContent()
+	if !m.logVP.AtBottom() {
+		t.Fatalf("new lines while at bottom should stay pinned (YOffset=%d)", m.logVP.YOffset)
+	}
+
+	m.logVP.SetYOffset(0)
+	fmt.Fprintf(m.logBuf, "user scrolled up — ignore\n")
+	m.setLogVPContent()
+	if m.logVP.YOffset != 0 {
+		t.Fatalf("scrolled up should preserve YOffset, got %d", m.logVP.YOffset)
+	}
+}
+
 // TestRefreshBranchContentOneRowPerBranch verifies one table row per local branch name.
 func TestRefreshBranchContentOneRowPerBranch(t *testing.T) {
 	m := newTestModel()
