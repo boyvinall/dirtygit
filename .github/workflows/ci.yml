@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11
+
+      - name: test
+        run: make test
+
+      - name: build
+        run: make build

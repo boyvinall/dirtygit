@@ -40,6 +40,7 @@ install-git-hooks:
 lint:
 	$(call PROMPT, $@)
 	golangci-lint run
+	markdownlint '**/*.md'
 
 #: run all tests
 test:

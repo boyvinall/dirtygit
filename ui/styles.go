@@ -42,8 +42,8 @@ func errorDoubleBox(width int) lipgloss.Style {
 }
 
 // placeSpace pads or clips content to a cell using space fill and default fg.
-func placeSpace(width, height int, ha, va lipgloss.Position, content string) string {
-	return lipgloss.Place(width, height, ha, va, content,
+func placeSpace(width, height int, content string) string {
+	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, content,
 		lipgloss.WithWhitespaceChars(" "),
 		lipgloss.WithWhitespaceForeground(lipgloss.Color("#000000")))
 }
@@ -56,9 +56,9 @@ func warnBlock(innerW int) lipgloss.Style {
 // tableSelectedRow matches repo-list greens/greys but keeps the status table bold.
 func tableSelectedRow(selectionFocused bool) lipgloss.Style {
 	if selectionFocused {
-		return styleSelRowFocused.Copy().Bold(true)
+		return styleSelRowFocused.Bold(true)
 	}
-	return styleSelRowBlurred.Copy().Bold(true)
+	return styleSelRowBlurred.Bold(true)
 }
 
 // deleteConfirmFooter is the dim hint line under Yes/No in delete overlays.

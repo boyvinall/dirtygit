@@ -15,3 +15,7 @@ linters:
     presets:
       - common-false-positives
       - std-error-handling
+
+formatters:
+  enable:
+    - gofmt

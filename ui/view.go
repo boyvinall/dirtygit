@@ -80,16 +80,16 @@ func (m *model) scanProgressPopup() string {
 
 	spin := lipgloss.NewStyle().Width(2).MaxWidth(2).Align(lipgloss.Center).Render(m.scanSpinner.View())
 	row1 := lipgloss.JoinHorizontal(lipgloss.Left, spin, " ", line)
-	row1 = placeSpace(innerW, 1, lipgloss.Left, lipgloss.Top, row1)
+	row1 = placeSpace(innerW, 1, row1)
 
 	pathText := shortenScanPath(p.CurrentPath, innerW)
 	if pathText == "" {
 		pathText = styleDim.Render("—")
 	}
-	pathRow := placeSpace(innerW, 1, lipgloss.Left, lipgloss.Top, pathText)
+	pathRow := placeSpace(innerW, 1, pathText)
 
-	title := placeSpace(innerW, 1, lipgloss.Left, lipgloss.Top, truncateASCII("Scanning repositories", innerW))
-	footer := placeSpace(innerW, 1, lipgloss.Left, lipgloss.Top, truncateASCII("Please wait...", innerW))
+	title := placeSpace(innerW, 1, truncateASCII("Scanning repositories", innerW))
+	footer := placeSpace(innerW, 1, truncateASCII("Please wait...", innerW))
 
 	body := strings.Join([]string{
 		title,
@@ -103,7 +103,7 @@ func (m *model) scanProgressPopup() string {
 		footer,
 	}, "\n")
 
-	body = placeSpace(innerW, scanModalInnerLines, lipgloss.Left, lipgloss.Top, body)
+	body = placeSpace(innerW, scanModalInnerLines, body)
 
 	return roundedModal(boxW).Render(body)
 }
@@ -140,7 +140,7 @@ func (m *model) helpPanel() string {
 	}
 	innerW := max(1, w-2)
 	innerH := max(1, h-2)
-	padded := placeSpace(innerW, innerH, lipgloss.Left, lipgloss.Top, body)
+	padded := placeSpace(innerW, innerH, body)
 	// Match other panes: title sits in the top border (see framedBlock).
 	// Use paneRepo so Diff's framedBlock title override (worktree/staged) does not replace this title.
 	return m.framedBlock(paneRepo, w, h, "Keyboard shortcuts", padded)
@@ -374,7 +374,7 @@ func (m *model) repoListView(innerH int) string {
 			b.WriteString(path)
 		}
 	}
-	return placeSpace(m.innerWidth(), innerH, lipgloss.Left, lipgloss.Top, b.String())
+	return placeSpace(m.innerWidth(), innerH, b.String())
 }
 
 // renderHelpOverlay draws the help panel edge-to-edge in the terminal.

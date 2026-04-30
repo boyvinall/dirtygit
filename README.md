@@ -28,7 +28,7 @@ brew install --cask boyvinall/tap/dirtygit
 Upgrade with:
 
 ```bash
-brew upgrade --cask dirtygit
+brew upgrade --cask boyvinall/tap/dirtygit
 ```
 
 ### Release
@@ -64,7 +64,9 @@ make install
 
 ## Configuration
 
-If `~/.dirtygit.yml` (or the path given with `--config` / `-c`) does not exist, the binary falls back to an **embedded default** (the same shape as [.dirtygit.yml](.dirtygit.yml) in this repo). Copy that file to your home directory and edit it to suit your setup; environment variables in paths are expanded.
+If `~/.dirtygit.yml` (or the path given with `--config` / `-c`) does not exist, the binary falls back to an
+**embedded default** (the same shape as [.dirtygit.yml](.dirtygit.yml) in this repo). Copy that file to your home
+directory and edit it to suit your setup; environment variables in paths are expanded.
 
 Options include:
 
@@ -152,7 +154,18 @@ compresses each remote into a short status (`ok`, `missing`, `differs`, or
 
 ### Opening a terminal (`t`)
 
-Press **`t`** to spawn a separate terminal whose initial directory is the **currently selected repository** (absolute path). dirtygit reads **`TERM_PROGRAM`** from the environment and picks a launcher when it recognizes the value—for example Terminal.app, iTerm, Warp, WezTerm, or kitty on macOS; WezTerm, kitty, or Ghostty on Linux; and common fallbacks that probe `PATH` on Linux when needed. On **Windows**, **Windows Terminal** (`wt`) is used when available; otherwise a new `cmd` window runs `cd` into the repo. With **Ghostty on macOS**, dirtygit prefers opening a **new tab** in the front window (AppleScript), falling back to a new Ghostty window if that fails. If nothing matches, you may see a log line about no launcher; run dirtygit from a terminal that sets `TERM_PROGRAM`, or rely on the Linux `PATH` fallback list.
+Press **`t`** to spawn a separate terminal whose initial directory is the **currently selected repository**
+(absolute path). dirtygit reads **`TERM_PROGRAM`** from the environment and picks a launcher when it recognizes the
+value—for example Terminal.app, iTerm, Warp, WezTerm, or kitty on macOS; WezTerm, kitty, or Ghostty on Linux; and common
+fallbacks that probe `PATH` on Linux when needed. On **Windows**, **Windows Terminal** (`wt`) is used when available;
+otherwise a new `cmd` window runs `cd` into the repo. With **Ghostty on macOS**, dirtygit prefers opening a **new tab**
+in the front window (AppleScript), falling back to a new Ghostty window if that fails. If nothing matches, you may see a
+log line about no launcher; run dirtygit from a terminal that sets `TERM_PROGRAM`, or rely on the Linux
+`PATH` fallback list.
+
+## Acknowledgements
+
+The TUI is built with the awesome [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
 ## Development
 
@@ -167,11 +180,15 @@ make help
 A few possibilities listed below, none of this is promised or scheduled.
 
 - **More tool integration** - beyond `e` (edit) and `t` (terminal), maybe a git gui.  And better configurability.
-- **Machine-readable output** — JSON or similar (flag or subcommand) for scripting and CI (e.g. exit non-zero if anything is dirty).
+- **Machine-readable output** — JSON or similar (flag or subcommand) for scripting and CI (e.g. exit non-zero if
+  anything is dirty).
 - **Filter / jump in the repo list** — type-ahead or substring match on paths.
 - **Copy repo path** — send the selected repository path to the OS clipboard where supported.
-- **Richer “why dirty” signals** — stash count, unpushed commits, or upstream ahead/behind in the UI or in the “why listed” overlay.
-- **Submodules and worktrees** — scan or label linked worktrees and submodules explicitly instead of treating them only as nested `.git` dirs.
-- **Parallel scan** — configurable worker count for status/branch checks, plus clearer cancel behaviour while a scan is running.
+- **Richer “why dirty” signals** — stash count, unpushed commits, or upstream ahead/behind in the UI or in the
+  “why listed” overlay.
+- **Submodules and worktrees** — scan or label linked worktrees and submodules explicitly instead of treating them
+  only as nested `.git` dirs.
+- **Parallel scan** — configurable worker count for status/branch checks, plus clearer cancel behaviour while a
+  scan is running.
 - **Configurable diff** — options such as ignore whitespace or word diff, driven from config, for the Diff pane.
 - **Safer delete housekeeping** — dry-run delete, or move to Trash on macOS instead of only recursive delete.

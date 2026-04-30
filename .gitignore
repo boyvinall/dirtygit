@@ -1,5 +1,17 @@
-dirtygit.app
+.*
+!.editorconfig
+!.gitignore
+!.gitattributes
+!.dirtygit.yml
+!.github
+!.goreleaser.yaml
+!.markdownlint.json
+!.claude
+
+# claude local things
+settings.local.json
+
+# built files
+dist/
 dirtygit
 dirtygit.exe
-dist/
-.vscode
