@@ -2,53 +2,75 @@
 
 ## What does this do?
 
-- Scans a whole bunch of directories looking for git repos
-- Shows you only the ones that seem to be somehow dirty, i.e. one of:
-  - It has uncommitted changes in the working tree and/or index (after your config’s extra ignores)
-  - It has local branches whose tips do not match every configured remote (or other branch-pane rules)
+- Walks your directory tree looking for git repositories
+- Shows only the ones that are dirty, meaning at least one of:
+  - Uncommitted changes in the working tree or index (after any extra ignores from your config)
+  - Local branches whose tips don’t match every configured remote (or other branch-pane rules)
 
 ## Why is this useful?
 
-You're busy.  You probably context-swapped a while back and forgot to commit/push a thing.
+You're busy.  You probably context-switched weeks ago and forgot to push something. It happens.
 
-There's a whole bunch of tools that are very good at managing a single git repo, but I've not
-found many that look at the bigger picture.  `dirtygit` helps you to know whether you care
-about the things that are only on your local system, so that you can ensure they get pushed
-to your git server.
+There are plenty of tools for managing a single git repo, but few that give you the bigger
+picture. `dirtygit` tells you what’s living only on your machine so you can make sure it
+reaches your git server.
 
-## Source-mode installation
+## Installation
 
-```bash
-go install github.com/boyvinall/dirtygit@latest
-```
+### Homebrew
 
-From a clone of this repository:
-
-```bash
-go install .
-```
-
-Building from source needs a recent **Go** toolchain (see `go` version in [go.mod](go.mod)).
-
-## Homebrew (tap)
-
-The tap publishes a **cask** (prebuilt binaries). Install with:
+On macOS you can install via [homebrew](https://brew.sh/) as follows:
 
 ```bash
 brew install --cask boyvinall/tap/dirtygit
 ```
 
-Upgrade with `brew upgrade --cask dirtygit`.
+Upgrade with:
+
+```bash
+brew upgrade --cask dirtygit
+```
+
+### Release
+
+On Linux, Windows, and macOS (without homebrew), you can download a pre-built archive from the
+[GitHub releases page](https://github.com/boyvinall/dirtygit/releases). Pick the archive
+matching your OS and architecture, extract it, and place the `dirtygit` binary somewhere on
+your `PATH`.
+
+On Linux/macOS:
+
+```bash
+tar -xzf dirtygit_*.tar.gz
+mv dirtygit /usr/local/bin/
+```
+
+On Windows, extract the `.tar.gz` and move `dirtygit.exe` to a directory in your `%PATH%`.
+
+### Source
+
+Alternatively, if you have a recent [Go](https://go.dev/) toolchain, you can build/install the latest release
+from source into `$GOPATH/bin`:
+
+```bash
+go install github.com/boyvinall/dirtygit@latest
+```
+
+Or, from a clone of this repository:
+
+```bash
+make install
+```
 
 ## Configuration
 
-If `~/.dirtygit.yml` (or the path you pass with `--config` / `-c`) does not exist, the binary loads an **embedded default** (the same shape as [.dirtygit.yml](.dirtygit.yml) in this repo). Copy that file to your home directory and edit it to customize; environment variables in paths are expanded.
+If `~/.dirtygit.yml` (or the path given with `--config` / `-c`) does not exist, the binary falls back to an **embedded default** (the same shape as [.dirtygit.yml](.dirtygit.yml) in this repo). Copy that file to your home directory and edit it to suit your setup; environment variables in paths are expanded.
 
 Options include:
 
 | Area                           | Purpose                                                                                                         |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `scandirs`                     | `include` / `exclude` roots for the walk – YOU SHOULD CONFIGURE AT LEAST THIS                                   |
+| `scandirs`                     | `include` / `exclude` roots for the walk — **configure this first**                                             |
 | `gitignore`                    | Extra `fileglob` / `dirglob` ignores on top of each repo’s `.gitignore`                                         |
 | `followsymlinks`               | Whether to descend symlinked directories                                                                        |
 | `branches.hidelocalonly.regex` | Regexes (full string match per pattern) for **local-only** branches to omit from the branch pane                |
@@ -80,9 +102,9 @@ your config for that run (paths are still expanded from the environment).
 
 ## UI
 
-The layout needs a terminal **height of at least 22** rows and **width of at
-least 20** columns. While a scan runs, a modal shows how many repositories were
-found, how many have been checked, and the path currently being processed.
+The layout requires a terminal at least **22 rows tall** and **20 columns wide**. While a scan
+runs, a modal shows how many repositories were found, how many have been checked, and the
+path currently being processed.
 
 Focus moves across five panes in order: **Repositories**, **Status**, **Branches**,
 **Diff**, and **Log**. **Status** and **Branches** share one row (side by side); **Diff**
@@ -134,12 +156,17 @@ Press **`t`** to spawn a separate terminal whose initial directory is the **curr
 
 ## Development
 
-Run `make help` to see all available make targets.
+Run the following to see all available make targets:
+
+```plaintext
+make help
+```
 
 ## Future
 
-Ideas that fit the “many repos at a glance” goal; none of this is promised or scheduled.
+A few possibilities listed below, none of this is promised or scheduled.
 
+- **More tool integration** - beyond `e` (edit) and `t` (terminal), maybe a git gui.  And better configurability.
 - **Machine-readable output** — JSON or similar (flag or subcommand) for scripting and CI (e.g. exit non-zero if anything is dirty).
 - **Filter / jump in the repo list** — type-ahead or substring match on paths.
 - **Copy repo path** — send the selected repository path to the OS clipboard where supported.
