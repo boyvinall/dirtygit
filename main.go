@@ -22,10 +22,14 @@ func getDefaultConfigPath() string {
 //go:embed .dirtygit.yml
 var defaultConfig string
 
+// Set at link time via GoReleaser (e.g. -ldflags "-X main.version=v1.2.3").
+var version = "dev"
+
 func main() {
 	app := cli.NewApp()
 	app.Name = "dirtygit"
 	app.Usage = "Finds git repos in need of commitment"
+	app.Version = version
 	app.EnableBashCompletion = true
 	app.CommandNotFound = func(c *cli.Context, cmd string) {
 		fmt.Printf("ERROR: Unknown command '%s'\n", cmd)

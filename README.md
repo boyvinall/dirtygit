@@ -30,6 +30,16 @@ go install .
 
 Building from source needs a recent **Go** toolchain (see `go` version in [go.mod](go.mod)).
 
+## Homebrew (tap)
+
+The tap publishes a **cask** (prebuilt binaries). Install with:
+
+```bash
+brew install --cask boyvinall/tap/dirtygit
+```
+
+Upgrade with `brew upgrade --cask dirtygit`.
+
 ## Configuration
 
 If `~/.dirtygit.yml` (or the path you pass with `--config` / `-c`) does not exist, the binary loads an **embedded default** (the same shape as [.dirtygit.yml](.dirtygit.yml) in this repo). Copy that file to your home directory and edit it to customize; environment variables in paths are expanded.
@@ -124,11 +134,7 @@ Press **`t`** to spawn a separate terminal whose initial directory is the **curr
 
 ## Development
 
-```bash
-make lint   # requires golangci-lint on PATH
-make test
-make build  # writes ./dirtygit
-```
+Run `make help` to see all available make targets.
 
 ## Future
 

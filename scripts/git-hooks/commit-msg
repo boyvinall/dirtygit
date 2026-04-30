@@ -1,0 +1,29 @@
+#!/bin/sh
+# Validates the first non-comment line against Conventional Commits.
+# https://www.conventionalcommits.org/
+
+set -eu
+
+commit_msg_file="${1:?}"
+
+subject=$(grep -v '^[[:space:]]*#' "$commit_msg_file" | grep -v '^[[:space:]]*$' | head -n 1 || true)
+
+if [ -z "$subject" ]; then
+	exit 0
+fi
+
+case "$subject" in
+Merge\ *) exit 0 ;;
+Revert\ *) exit 0 ;;
+esac
+
+# type[(scope)][!]: description
+pattern='^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?(!)?: .+'
+
+if ! printf '%s\n' "$subject" | grep -Eq "$pattern"; then
+	printf '%s\n' "Commit message does not follow Conventional Commits." >&2
+	printf '%s\n' "Expected: <type>[(optional scope)][!]: <description>" >&2
+	printf '%s\n' "Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert" >&2
+	printf '%s\n' "Examples: feat: add status filter  |  fix(ui): handle empty repo  |  chore!: drop Go 1.20" >&2
+	exit 1
+fi

@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+#
+# Schema reference: https://goreleaser.com/static/schema.json
+# In that file, see $defs.Build (build id), $defs.Archive (archive id vs ids),
+# and $defs.HomebrewCask (which archives and binaries the cask uses).
+# Human-oriented docs: https://goreleaser.com/customization/
+#
+# Naming: we use "dirtygit" as the build id, archive id, and cask name so one
+# label ties the pipeline together. Those are three different schema fields:
+#   builds[].id           -> referenced by archives[].ids
+#   archives[].id         -> referenced by homebrew_casks[].ids
+#   homebrew_casks[].binaries -> filenames inside the tarball (matches builds[].binary)
+
+version: 2
+
+project_name: dirtygit
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  # $defs.Build: id names this compile pipeline; other sections refer to it.
+  - id: dirtygit
+    binary: dirtygit
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  # $defs.Archive:
+  #   id  = this archive config's name (what homebrew_casks[].ids lists).
+  #   ids = build ids ($defs.Build.id) whose artifacts are packaged here.
+  - id: dirtygit
+    ids: [dirtygit]
+    formats: [tar.gz]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - Merge branch
+
+homebrew_casks:
+  # $defs.HomebrewCask:
+  #   ids      = archive config ids ($defs.Archive.id), not build ids.
+  #   binaries = executable names staged from the archive (here = builds[].binary).
+  # Publishes Casks/<name>.rb to the tap (default directory: Casks).
+  - name: dirtygit
+    ids: [dirtygit]
+    binaries: [dirtygit]
+    description: Finds git repos in need of commitment
+    homepage: https://github.com/boyvinall/dirtygit
+    license: BSD-2-Clause
+    repository:
+      owner: boyvinall
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_msg_template: Brew cask update for {{ .ProjectName }} version {{ .Tag }}
+    commit_author:
+      name: github-actions[bot]
+      email: 41898282+github-actions[bot]@users.noreply.github.com
