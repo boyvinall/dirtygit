@@ -112,10 +112,15 @@ compresses each remote into a short status (`ok`, `missing`, `differs`, or
 | `C`                   | With a status file row selected (Status or Diff): confirm, then `git checkout HEAD --` that path (restore to last commit)                                                            |
 | `s`                   | Scan or rescan                                                                                                                                                                       |
 | `e`                   | Open the selected repo using `edit.command` from config                                                                                                                              |
+| `t`                   | Open a new terminal for the selected repo (working directory set to that path); parent terminal inferred from `TERM_PROGRAM` when known                                              |
 | `w`                   | With Repositories focused: why this repository is in the list                                                                                                                        |
 | `D`                   | Repositories: delete that repo directory; Status or Diff with a file row: delete that path under the repo (each confirms)                                                            |
 | `q` / `Ctrl+C`        | Quit                                                                                                                                                                                 |
 | `?` / `h`             | Show help (`Esc`, `?`, or `h` closes the overlay; `q` / `Ctrl+C` still quit)                                                                                                         |
+
+### Opening a terminal (`t`)
+
+Press **`t`** to spawn a separate terminal whose initial directory is the **currently selected repository** (absolute path). dirtygit reads **`TERM_PROGRAM`** from the environment and picks a launcher when it recognizes the value—for example Terminal.app, iTerm, Warp, WezTerm, or kitty on macOS; WezTerm, kitty, or Ghostty on Linux; and common fallbacks that probe `PATH` on Linux when needed. On **Windows**, **Windows Terminal** (`wt`) is used when available; otherwise a new `cmd` window runs `cd` into the repo. With **Ghostty on macOS**, dirtygit prefers opening a **new tab** in the front window (AppleScript), falling back to a new Ghostty window if that fails. If nothing matches, you may see a log line about no launcher; run dirtygit from a terminal that sets `TERM_PROGRAM`, or rely on the Linux `PATH` fallback list.
 
 ## Development
 

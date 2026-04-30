@@ -124,6 +124,7 @@ func (m *model) helpPanel() string {
 		"C             With a file row selected (Status or Diff): restore file to last commit (confirms git checkout HEAD -- path)",
 		"s             Scan / rescan",
 		"e             Open selected repository (edit.command in config)",
+		"t             Open a new terminal in the selected repo (from TERM_PROGRAM when known)",
 		"w             Repositories focused: why this repository is in the list",
 		"D             Repo list: delete the repository directory (confirm)",
 		"              Status or Diff with a file row: delete that path under the repo (confirm)",
@@ -399,7 +400,7 @@ func (m *model) renderZoomedPane(repoBody int) string {
 	case paneDiff:
 		return m.framedBlock(paneDiff, m.width, m.height, "Diff", m.diffVP.View())
 	case paneLog:
-		m.logVP.SetContent(m.logBuf.String())
+		m.setLogVPContent()
 		return m.framedBlock(paneLog, m.width, m.height, "Log", m.logVP.View())
 	default:
 		return ""
@@ -416,7 +417,7 @@ func (m *model) renderMainStack(repoBody, statusBody, diffBody, logBody int) str
 	repoBlock := m.framedBlock(paneRepo, m.width, repoOuter, "Repositories", m.repoListView(repoBody))
 	statusRow := m.framedStatusBranchesRow(statusOuter, m.statusTable.View(), m.branchTable.View())
 	diffBlock := m.framedBlock(paneDiff, m.width, diffOuter, "Diff", m.diffVP.View())
-	m.logVP.SetContent(m.logBuf.String())
+	m.setLogVPContent()
 	logBlock := m.framedBlock(paneLog, m.width, logOuter, "Log", m.logVP.View())
 
 	return lipgloss.JoinVertical(lipgloss.Left, repoBlock, statusRow, diffBlock, logBlock)

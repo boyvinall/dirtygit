@@ -336,6 +336,9 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	case "e":
 		m.openCurrentRepo()
 		return m, nil, true
+	case "t":
+		m.openTerminalInCurrentRepo()
+		return m, nil, true
 	case "w":
 		if m.repoPaneReady() {
 			m.whyRepoOpen = true
