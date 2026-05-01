@@ -47,8 +47,8 @@ func (m *model) repoPaneOuterHeight() (outerH int, ok bool) {
 	if m.height < layoutMinTermHeight || m.width < layoutMinTermWidth {
 		return 0, false
 	}
-	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
+	lay := m.layoutBodies()
+	if lay.isZero() {
 		return 0, false
 	}
 	if m.zoomed {
@@ -57,7 +57,7 @@ func (m *model) repoPaneOuterHeight() (outerH int, ok bool) {
 		}
 		return m.height, true
 	}
-	return panelOuter(repoBody), true
+	return panelOuter(lay.repo), true
 }
 
 // statusPaneFrame returns the top Y of the status pane, its outer height, and
@@ -66,8 +66,8 @@ func (m *model) statusPaneFrame() (topY, outerH, outerW int, ok bool) {
 	if m.height < layoutMinTermHeight || m.width < layoutMinTermWidth {
 		return 0, 0, 0, false
 	}
-	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
+	lay := m.layoutBodies()
+	if lay.isZero() {
 		return 0, 0, 0, false
 	}
 	if m.zoomed {
@@ -76,8 +76,8 @@ func (m *model) statusPaneFrame() (topY, outerH, outerW int, ok bool) {
 		}
 		return 0, m.height, m.width, true
 	}
-	repoOuter := panelOuter(repoBody)
-	statusOuter := panelOuter(statusBody)
+	repoOuter := panelOuter(lay.repo)
+	statusOuter := panelOuter(lay.status)
 	leftW, _ := m.middleRowColumnOuterWidths(m.width)
 	return repoOuter, statusOuter, leftW, true
 }

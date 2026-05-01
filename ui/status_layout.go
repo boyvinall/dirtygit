@@ -13,18 +13,12 @@ import (
 	"github.com/boyvinall/dirtygit/scanner"
 )
 
-// diffBodyFromStackedStatusBranch returns diff inner body height so the Diff pane outer height
-// matches Status and Branches stacked (each pane contributes top+bottom borders).
-func diffBodyFromStackedStatusBranch(statusBody, branchBody int) int {
-	return statusBody + branchBody + 2
-}
-
 // autoLayoutBodies returns the default vertical split without user resize prefs.
 // Middle row: Status above Branches on the left, Diff on the right (same outer height as the stack).
 // diffBody == statusBody+branchBody+2 so the Diff viewport fills the band; it is not added to the vertical body sum.
-func (m *model) autoLayoutBodies() (repoBody, statusBody, branchBody, diffBody, logBody int) {
+func (m *model) autoLayoutBodies() paneLayout {
 	if m.height < layoutMinTermHeight || m.width < layoutMinTermWidth {
-		return 0, 0, 0, 0, 0
+		return paneLayout{}
 	}
 	if m.zoomed {
 		body := max(
@@ -32,51 +26,38 @@ func (m *model) autoLayoutBodies() (repoBody, statusBody, branchBody, diffBody, 
 			m.height-2, layoutMinBodyLines)
 		switch m.zoomTarget {
 		case paneRepo:
-			return body, 0, 0, 0, 0
+			return paneLayout{repo: body}
 		case paneStatus:
-			return 0, body, 0, 0, 0
+			return paneLayout{status: body}
 		case paneBranches:
-			return 0, 0, body, 0, 0
+			return paneLayout{branch: body}
 		case paneDiff:
-			return 0, 0, 0, body, 0
+			return paneLayout{diff: body}
 		case paneLog:
-			return 0, 0, 0, 0, body
+			return paneLayout{logBody: body}
+		default:
+			return paneLayout{}
 		}
 	}
 	effH := m.height
-	logBody = layoutDefaultLogBodyLines
+	logBody := layoutDefaultLogBodyLines
 	n := len(m.repoList)
 	if n == 0 {
 		n = 1
 	}
-	repoBody = min(n+2, effH/3)
+	repoBody := min(n+2, effH/3)
 	repoBody = max(layoutMinBodyLines, repoBody)
 
-	available := effH - layoutFrameStackOuterRows - repoBody - logBody
-	for available < layoutMinSpareForSplit && logBody > layoutMinBodyLines {
-		logBody--
-		available = effH - layoutFrameStackOuterRows - repoBody - logBody
+	repoBody, logBody, available, ok := tightenRepoAndLogForMiddleSpare(effH, repoBody, logBody)
+	if !ok {
+		return paneLayout{}
 	}
-	for available < layoutMinSpareForSplit && repoBody > layoutMinBodyLines {
-		repoBody--
-		available = effH - layoutFrameStackOuterRows - repoBody - logBody
+	statusBody, branchBody := splitStatusBranchEvenly(available)
+	diffBody := diffBodyFromStackedStatusBranch(statusBody, branchBody)
+	if !nonZoomStackBodiesValid(repoBody, statusBody, branchBody, diffBody, logBody, available) {
+		return paneLayout{}
 	}
-	if available < layoutMinSpareForSplit {
-		return 0, 0, 0, 0, 0
-	}
-
-	// Vertical budget: repo + log + status + branch == effH - layoutFrameStackOuterRows.
-	// Diff sits beside the status/branch stack (same outer height), so it does not add rows.
-	sumSB := available
-	statusBody = sumSB / 2
-	branchBody = sumSB - statusBody
-	diffBody = diffBodyFromStackedStatusBranch(statusBody, branchBody)
-	if statusBody < layoutMinBodyLines || branchBody < layoutMinBodyLines || diffBody < layoutMinBodyLines ||
-		logBody < layoutMinBodyLines || repoBody < layoutMinBodyLines ||
-		statusBody+branchBody != available {
-		return 0, 0, 0, 0, 0
-	}
-	return repoBody, statusBody, branchBody, diffBody, logBody
+	return paneLayout{repo: repoBody, status: statusBody, branch: branchBody, diff: diffBody, logBody: logBody}
 }
 
 func (m *model) clearCustomVerticalLayout() {
@@ -86,37 +67,30 @@ func (m *model) clearCustomVerticalLayout() {
 
 // layoutBodies returns inner content heights: repo list, status table, branch table, diff viewport, log viewport.
 // Each framed panel's total row count is panelOuter(body) (see framedBlock).
-func (m *model) layoutBodies() (repoBody, statusBody, branchBody, diffBody, logBody int) {
-	ar, as, ab, ad, al := m.autoLayoutBodies()
-	if ar == 0 && as == 0 && ab == 0 && ad == 0 && al == 0 {
-		return 0, 0, 0, 0, 0
+func (m *model) layoutBodies() paneLayout {
+	auto := m.autoLayoutBodies()
+	if auto.isZero() {
+		return paneLayout{}
 	}
 	if m.zoomed || !m.layoutUseCustomVertical {
-		return ar, as, ab, ad, al
+		return auto
 	}
-	innerTotal := m.height - layoutFrameStackOuterRows
-	repoBody = m.layoutRepoBody
-	statusBody = m.layoutStatusBody
-	branchBody = m.layoutBranchBody
-	logBody = m.layoutLogBody
+	innerTotal := innerVerticalBudget(m.height)
+	repoBody := m.layoutRepoBody
+	statusBody := m.layoutStatusBody
+	branchBody := m.layoutBranchBody
+	logBody := m.layoutLogBody
 	if repoBody < layoutMinBodyLines || statusBody < layoutMinBodyLines || branchBody < layoutMinBodyLines || logBody < layoutMinBodyLines {
 		m.clearCustomVerticalLayout()
-		return ar, as, ab, ad, al
+		return auto
 	}
 	available := innerTotal - repoBody - logBody
-	diffBody = diffBodyFromStackedStatusBranch(statusBody, branchBody)
-	if available < layoutMinSpareForSplit || diffBody < layoutMinBodyLines ||
-		statusBody+branchBody != available ||
-		panelOuter(statusBody)+panelOuter(branchBody) != panelOuter(diffBody) {
+	diffBody := diffBodyFromStackedStatusBranch(statusBody, branchBody)
+	if !customVerticalLayoutOK(statusBody, branchBody, diffBody, available) {
 		m.clearCustomVerticalLayout()
-		return ar, as, ab, ad, al
+		return auto
 	}
-	return repoBody, statusBody, branchBody, diffBody, logBody
-}
-
-// panelOuter converts an inner body height into full framed panel height.
-func panelOuter(body int) int {
-	return body + 2 // top border (with title) + body + bottom border
+	return paneLayout{repo: repoBody, status: statusBody, branch: branchBody, diff: diffBody, logBody: logBody}
 }
 
 // paneAtTerminalCell maps a 0-based terminal cell (from Bubble Tea mouse events)
@@ -128,17 +102,17 @@ func (m *model) paneAtTerminalCell(x, y int) (pane, bool) {
 	if x < 0 || y < 0 || x >= m.width || y >= m.height {
 		return paneRepo, false
 	}
-	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
+	lay := m.layoutBodies()
+	if lay.isZero() {
 		return paneRepo, false
 	}
 	if m.zoomed {
 		return m.zoomTarget, true
 	}
-	repoOuter := panelOuter(repoBody)
-	statusOuter := panelOuter(statusBody)
-	middleOuter := panelOuter(diffBody)
-	logOuter := panelOuter(logBody)
+	repoOuter := panelOuter(lay.repo)
+	statusOuter := panelOuter(lay.status)
+	middleOuter := panelOuter(lay.diff)
+	logOuter := panelOuter(lay.logBody)
 	leftOuter, _ := m.middleRowColumnOuterWidths(m.width)
 
 	if y < repoOuter {
@@ -214,8 +188,8 @@ func (m *model) setLogVPContent() {
 // a loading line until a follow-up runDiffForGen is handled. Used when
 // the repository selection changes so scrolling stays responsive.
 func (m *model) applyViewportAndPanes(syncDiff bool) {
-	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
+	lay := m.layoutBodies()
+	if lay.isZero() {
 		return
 	}
 
@@ -228,15 +202,15 @@ func (m *model) applyViewportAndPanes(syncDiff bool) {
 	}
 
 	m.statusTable.SetWidth(statusInnerW)
-	m.statusTable.SetHeight(statusBody)
+	m.statusTable.SetHeight(lay.status)
 	m.statusTable.SetColumns(statusColumns(statusInnerW))
 	m.logVP.Width = m.innerWidth()
-	m.logVP.Height = logBody
+	m.logVP.Height = lay.logBody
 	m.diffVP.Width = diffInnerW
-	m.diffVP.Height = diffBody
+	m.diffVP.Height = lay.diff
 	m.refreshStatusContent()
 	m.refreshBranchContent(branchInnerW)
-	m.branchTable.SetHeight(branchBody)
+	m.branchTable.SetHeight(lay.branch)
 	if syncDiff {
 		m.refreshDiffContent()
 	} else if m.diffNeedsRefresh {
@@ -244,7 +218,7 @@ func (m *model) applyViewportAndPanes(syncDiff bool) {
 	}
 	m.diffVP.SetContent(m.diffContent)
 	m.setLogVPContent()
-	m.clampRepoScroll(repoBody)
+	m.clampRepoScroll(lay.repo)
 }
 
 // newStatusTable builds the status pane table with default styling.

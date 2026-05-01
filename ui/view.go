@@ -339,11 +339,11 @@ func (m *model) clampRepoScroll(innerH int) {
 // syncRepoListScrollOnly updates repoScrollTop for the current cursor; it is
 // cheap and used while keyboard navigation debounces the rest of the UI.
 func (m *model) syncRepoListScrollOnly() {
-	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
+	lay := m.layoutBodies()
+	if lay.isZero() {
 		return
 	}
-	m.clampRepoScroll(repoBody)
+	m.clampRepoScroll(lay.repo)
 }
 
 // repoListView renders the repository list with current selection styling.
@@ -396,10 +396,10 @@ func (m *model) renderScanOverlay() string {
 }
 
 // renderZoomedPane draws only the active pane in fullscreen mode.
-func (m *model) renderZoomedPane(repoBody int) string {
+func (m *model) renderZoomedPane(lay paneLayout) string {
 	switch m.zoomTarget {
 	case paneRepo:
-		return m.framedBlock(paneRepo, m.width, m.height, "Repositories", m.repoListView(repoBody))
+		return m.framedBlock(paneRepo, m.width, m.height, "Repositories", m.repoListView(lay.repo))
 	case paneStatus:
 		return m.framedBlock(paneStatus, m.width, m.height, "Status", m.statusTable.View())
 	case paneBranches:
@@ -415,12 +415,12 @@ func (m *model) renderZoomedPane(repoBody int) string {
 }
 
 // renderMainStack composes the standard main layout: repo, middle row (status/branch + diff), log.
-func (m *model) renderMainStack(repoBody, statusBody, branchBody, diffBody, logBody int) string {
-	repoOuter := panelOuter(repoBody)
-	logOuter := panelOuter(logBody)
+func (m *model) renderMainStack(lay paneLayout) string {
+	repoOuter := panelOuter(lay.repo)
+	logOuter := panelOuter(lay.logBody)
 
-	repoBlock := m.framedBlock(paneRepo, m.width, repoOuter, "Repositories", m.repoListView(repoBody))
-	middleRow := m.framedMiddleRow(statusBody, branchBody, diffBody, m.statusTable.View(), m.branchTable.View(), m.diffVP.View())
+	repoBlock := m.framedBlock(paneRepo, m.width, repoOuter, "Repositories", m.repoListView(lay.repo))
+	middleRow := m.framedMiddleRow(lay.status, lay.branch, lay.diff, m.statusTable.View(), m.branchTable.View(), m.diffVP.View())
 	m.setLogVPContent()
 	logBlock := m.framedBlock(paneLog, m.width, logOuter, "Log", m.logVP.View())
 
@@ -461,16 +461,16 @@ func (m *model) View() string {
 		return m.renderScanOverlay()
 	}
 
-	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
+	lay := m.layoutBodies()
+	if lay.isZero() {
 		return ""
 	}
 
 	stack := ""
 	if m.zoomed {
-		stack = m.renderZoomedPane(repoBody)
+		stack = m.renderZoomedPane(lay)
 	} else {
-		stack = m.renderMainStack(repoBody, statusBody, branchBody, diffBody, logBody)
+		stack = m.renderMainStack(lay)
 	}
 	if m.err != nil {
 		return m.renderErrorOverlay()

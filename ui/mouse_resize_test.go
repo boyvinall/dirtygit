@@ -12,9 +12,9 @@ func TestResizeSplitAtHorizontalSeams(t *testing.T) {
 	m.height = 30
 	m.repoList = []string{"a", "b", "c"}
 
-	repoBody, _, _, diffBody, _ := m.layoutBodies()
-	repoOuter := panelOuter(repoBody)
-	middleOuter := panelOuter(diffBody)
+	lay := m.layoutBodies()
+	repoOuter := panelOuter(lay.repo)
+	middleOuter := panelOuter(lay.diff)
 
 	if k, ok := m.resizeSplitAt(0, repoOuter); !ok || k != resizeRepoStatus {
 		t.Fatalf("resizeSplitAt repo seam y=%d = (%v,%v), want (resizeRepoStatus,true)", repoOuter, k, ok)
@@ -31,9 +31,9 @@ func TestResizeSplitAtVerticalBetweenStatusAndBranches(t *testing.T) {
 	m.height = 30
 	m.repoList = []string{"a", "b", "c"}
 
-	repoBody, statusBody, _, _, _ := m.layoutBodies()
-	repoOuter := panelOuter(repoBody)
-	statusOuter := panelOuter(statusBody)
+	l := m.layoutBodies()
+	repoOuter := panelOuter(l.repo)
+	statusOuter := panelOuter(l.status)
 	leftW, _ := m.middleRowColumnOuterWidths(m.width)
 	y := repoOuter + statusOuter - 1
 	if k, ok := m.resizeSplitAt(leftW/2, y); !ok || k != resizeStatusBranch {
@@ -47,10 +47,10 @@ func TestResizeSplitAtMiddleColumnDivider(t *testing.T) {
 	m.height = 30
 	m.repoList = []string{"a", "b", "c"}
 
-	repoBody, _, _, diffBody, _ := m.layoutBodies()
-	repoOuter := panelOuter(repoBody)
+	l := m.layoutBodies()
+	repoOuter := panelOuter(l.repo)
 	leftW, _ := m.middleRowColumnOuterWidths(m.width)
-	y := repoOuter + panelOuter(diffBody)/2
+	y := repoOuter + panelOuter(l.diff)/2
 	if k, ok := m.resizeSplitAt(leftW, y); !ok || k != resizeMiddleColumns {
 		t.Fatalf("resizeSplitAt left/diff column = (%v,%v), want (resizeMiddleColumns,true)", k, ok)
 	}
@@ -62,8 +62,8 @@ func TestMouseDragResizesRepoPane(t *testing.T) {
 	m.height = 30
 	m.repoList = []string{"a", "b", "c"}
 
-	before, _, _, _, _ := m.layoutBodies()
-	repoOuter := panelOuter(before)
+	before := m.layoutBodies()
+	repoOuter := panelOuter(before.repo)
 	press := tea.MouseMsg{
 		X:      0,
 		Y:      repoOuter,
@@ -83,9 +83,9 @@ func TestMouseDragResizesRepoPane(t *testing.T) {
 	}
 	next, _ := mm0.Update(motion)
 	mm := next.(*model)
-	after, _, _, _, _ := mm.layoutBodies()
-	if after <= before {
-		t.Fatalf("repo body after drag = %d, before = %d, expected larger", after, before)
+	after := mm.layoutBodies()
+	if after.repo <= before.repo {
+		t.Fatalf("repo body after drag = %d, before = %d, expected larger", after.repo, before.repo)
 	}
 	if !mm.layoutUseCustomVertical {
 		t.Fatal("expected layoutUseCustomVertical after resize")

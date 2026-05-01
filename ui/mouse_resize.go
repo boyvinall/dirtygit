@@ -25,8 +25,8 @@ func (m *model) handleMousePaneResize(msg tea.MouseMsg) bool {
 		return false
 	}
 
-	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
+	lay := m.layoutBodies()
+	if lay.isZero() {
 		return false
 	}
 
@@ -87,11 +87,12 @@ func splitSumSBPreservingRatio(statusBody, branchBody, sumSB int) (st, br int) {
 }
 
 func (m *model) applyResizeDrag(x, y int) {
-	innerTotal := m.height - layoutFrameStackOuterRows
-	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
+	innerTotal := innerVerticalBudget(m.height)
+	lay := m.layoutBodies()
+	if lay.isZero() {
 		return
 	}
+	repoBody, statusBody, branchBody, diffBody, logBody := lay.repo, lay.status, lay.branch, lay.diff, lay.logBody
 
 	switch m.resizeDrag {
 	case resizeRepoStatus:
@@ -196,18 +197,8 @@ func (m *model) applyResizeDrag(x, y int) {
 		m.layoutLogBody = log
 
 	case resizeMiddleColumns:
-		if m.width < layoutMinTermWidth {
-			return
-		}
-		leftOuter := x
-		rightOuter := m.width - leftOuter
-		if rightOuter < layoutMinStatusBranchesColumn {
-			rightOuter = layoutMinStatusBranchesColumn
-		}
-		if rightOuter > m.width-layoutMinStatusBranchesColumn {
-			rightOuter = m.width - layoutMinStatusBranchesColumn
-		}
-		if rightOuter < layoutMinStatusBranchesColumn || rightOuter > m.width-layoutMinStatusBranchesColumn {
+		rightOuter, ok := clampDiffColumnOuterWidth(m.width, x)
+		if !ok {
 			return
 		}
 		m.layoutBranchesOuter = rightOuter
@@ -219,13 +210,13 @@ func (m *model) applyResizeDrag(x, y int) {
 
 // resizeSplitAt returns which resize handle (if any) lies at (x, y).
 func (m *model) resizeSplitAt(x, y int) (resizeSplit, bool) {
-	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
+	lay := m.layoutBodies()
+	if lay.isZero() {
 		return resizeNone, false
 	}
-	repoOuter := panelOuter(repoBody)
-	statusOuter := panelOuter(statusBody)
-	middleOuter := panelOuter(diffBody)
+	repoOuter := panelOuter(lay.repo)
+	statusOuter := panelOuter(lay.status)
+	middleOuter := panelOuter(lay.diff)
 	leftOuter, _ := m.middleRowColumnOuterWidths(m.width)
 
 	if nearInt(y, repoOuter-1) || nearInt(y, repoOuter) {
