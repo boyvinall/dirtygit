@@ -102,7 +102,7 @@ Sleep 200ms
 Tab
 Sleep 200ms
 
-# tab to diff
+# tab to log (Diff is not in the Tab cycle; click the Diff pane to focus it)
 Tab
 Sleep 200ms
 

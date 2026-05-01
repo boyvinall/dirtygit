@@ -277,24 +277,52 @@ func (m *model) toggleZoom() {
 	m.zoomTarget = m.focus
 }
 
-// cycleFocus moves focus across panes in forward or reverse order.
+// tabFocusCycle is the Tab / Shift+Tab order. Diff is not included; focus it by clicking the pane.
+var tabFocusCycle = []pane{paneRepo, paneStatus, paneBranches, paneLog}
+
+// cycleFocus moves focus across panes in forward or reverse order (skipping Diff).
 func (m *model) cycleFocus(forward bool) {
-	const paneCount = 5
+	n := len(tabFocusCycle)
+	cur := m.focus
 	if m.zoomed {
-		if forward {
-			m.zoomTarget = (m.zoomTarget + 1) % paneCount
-		} else {
-			m.zoomTarget = (m.zoomTarget - 1 + paneCount) % paneCount
-		}
-		m.focus = m.zoomTarget
-		return
+		cur = m.zoomTarget
 	}
 
-	if forward {
-		m.focus = (m.focus + 1) % paneCount
+	var i int
+	found := false
+	for j, p := range tabFocusCycle {
+		if p == cur {
+			i = j
+			found = true
+			break
+		}
+	}
+	if !found {
+		if cur == paneDiff {
+			// Mouse-focused Diff: Tab continues the main layout order (Branches → Diff → Log).
+			if forward {
+				i = 3 // log
+			} else {
+				i = 2 // branches
+			}
+		} else {
+			i = 0
+		}
+	} else {
+		if forward {
+			i = (i + 1) % n
+		} else {
+			i = (i - 1 + n) % n
+		}
+	}
+
+	next := tabFocusCycle[i]
+	if m.zoomed {
+		m.zoomTarget = next
+		m.focus = next
 		return
 	}
-	m.focus = (m.focus - 1 + paneCount) % paneCount
+	m.focus = next
 }
 
 // handleCommandKey handles global command keys and focus controls.
@@ -383,6 +411,21 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 			m.deleteConfirmYes = false
 			return m, nil, true
 		}
+	case " ":
+		if m.focus != paneDiff && m.focus != paneStatus {
+			return m, nil, false
+		}
+		prevMode := m.diffMode
+		if m.diffMode == diffModeWorktree {
+			m.diffMode = diffModeStaged
+		} else {
+			m.diffMode = diffModeWorktree
+		}
+		if m.diffMode != prevMode {
+			m.diffNeedsRefresh = true
+			m.syncViewports()
+		}
+		return m, nil, true
 	default:
 		if helpKey(msg) {
 			m.helpOpen = true
@@ -395,7 +438,8 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 // listKeyScrollPage is the step size for Shift+↑/↓ in scrollable lists and viewports.
 const listKeyScrollPage = 10
 
-// handleArrowKey applies directional key behavior for the focused pane.
+// handleArrowKey applies directional keys: scrolling / repo navigation, and
+// ←/→ to move focus between Status and Diff.
 func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	switch msg.Type {
 	case tea.KeyUp, tea.KeyDown, tea.KeyShiftUp, tea.KeyShiftDown:
@@ -474,21 +518,24 @@ func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 			m.logVP, cmd = m.logVP.Update(msg)
 			return m, cmd, true
 		}
-	case tea.KeyLeft, tea.KeyRight:
-		if m.focus != paneDiff && m.focus != paneStatus {
-			return m, nil, false
-		}
-		prevMode := m.diffMode
-		if msg.Type == tea.KeyLeft {
-			m.diffMode = diffModeWorktree
-		} else {
-			m.diffMode = diffModeStaged
-		}
-		if m.diffMode != prevMode {
-			m.diffNeedsRefresh = true
+	case tea.KeyRight:
+		if m.focus == paneStatus {
+			m.focus = paneDiff
+			if m.zoomed {
+				m.zoomTarget = paneDiff
+			}
 			m.syncViewports()
+			return m, nil, true
 		}
-		return m, nil, true
+	case tea.KeyLeft:
+		if m.focus == paneDiff {
+			m.focus = paneStatus
+			if m.zoomed {
+				m.zoomTarget = paneStatus
+			}
+			m.syncViewports()
+			return m, nil, true
+		}
 	}
 	return m, nil, false
 }

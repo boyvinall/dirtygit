@@ -10,9 +10,9 @@ type resizeSplit int
 const (
 	resizeNone resizeSplit = iota
 	resizeRepoStatus
-	resizeStatusDiff
-	resizeDiffLog
-	resizeStatusBranches
+	resizeStatusBranch
+	resizeMiddleLog
+	resizeMiddleColumns
 )
 
 // handleMousePaneResize handles click-drag on pane borders to resize splits.
@@ -25,8 +25,8 @@ func (m *model) handleMousePaneResize(msg tea.MouseMsg) bool {
 		return false
 	}
 
-	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
+	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
+	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
 		return false
 	}
 
@@ -68,10 +68,28 @@ func (m *model) handleMousePaneResize(msg tea.MouseMsg) bool {
 	}
 }
 
+func splitSumSBPreservingRatio(statusBody, branchBody, sumSB int) (st, br int) {
+	pair := statusBody + branchBody
+	if pair <= 0 || sumSB <= 0 {
+		st = sumSB / 2
+		br = sumSB - st
+		return st, br
+	}
+	st = statusBody * sumSB / pair
+	if st < layoutMinBodyLines {
+		st = layoutMinBodyLines
+	}
+	if st > sumSB-layoutMinBodyLines {
+		st = sumSB - layoutMinBodyLines
+	}
+	br = sumSB - st
+	return st, br
+}
+
 func (m *model) applyResizeDrag(x, y int) {
 	innerTotal := m.height - layoutFrameStackOuterRows
-	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
+	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
+	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
 		return
 	}
 
@@ -93,30 +111,30 @@ func (m *model) applyResizeDrag(x, y int) {
 		if repo < layoutMinBodyLines {
 			return
 		}
-		available := innerTotal - repo - logBody
+		logAdj := logBody
+		available := innerTotal - repo - logAdj
 		if available < layoutMinSpareForSplit {
 			return
 		}
-		st := statusBody
-		di := available - st
-		if di < layoutMinBodyLines {
-			di = layoutMinBodyLines
-			st = available - di
+		sumSB := available
+		if sumSB < 2*layoutMinBodyLines {
+			return
 		}
-		if st < layoutMinBodyLines {
-			st = layoutMinBodyLines
-			di = available - st
-		}
-		if di < layoutMinBodyLines || st < layoutMinBodyLines {
+		st, br := splitSumSBPreservingRatio(statusBody, branchBody, sumSB)
+		di := diffBodyFromStackedStatusBranch(st, br)
+		if st < layoutMinBodyLines || br < layoutMinBodyLines || di < layoutMinBodyLines {
 			return
 		}
 		m.layoutUseCustomVertical = true
 		m.layoutRepoBody = repo
 		m.layoutStatusBody = st
-		m.layoutLogBody = logBody
+		m.layoutBranchBody = br
+		m.layoutLogBody = logAdj
 
-	case resizeStatusDiff:
+	case resizeStatusBranch:
+		sumSB := statusBody + branchBody
 		repoOuter := panelOuter(repoBody)
+		middleOuter := panelOuter(diffBody)
 		prevStatusOuter := panelOuter(statusBody)
 		var statusOuter int
 		if y < repoOuter+prevStatusOuter {
@@ -124,67 +142,75 @@ func (m *model) applyResizeDrag(x, y int) {
 		} else {
 			statusOuter = y - repoOuter
 		}
-		statusOuterMax := innerTotal - repoBody - logBody - 1
+		minBranchOuter := panelOuter(layoutMinBodyLines)
+		statusOuterMax := repoOuter + middleOuter - minBranchOuter
 		if statusOuterMax < layoutMinPanelOuter {
 			return
 		}
 		statusOuter = max(layoutMinPanelOuter, min(statusOuter, statusOuterMax))
-		status := statusOuter - 2
-		if status < layoutMinBodyLines {
-			return
-		}
-		available := innerTotal - repoBody - logBody
-		diff := available - status
-		if diff < layoutMinBodyLines {
+		st := statusOuter - 2
+		br := sumSB - st
+		if br < layoutMinBodyLines || st < layoutMinBodyLines {
 			return
 		}
 		m.layoutUseCustomVertical = true
 		m.layoutRepoBody = repoBody
-		m.layoutStatusBody = status
+		m.layoutStatusBody = st
+		m.layoutBranchBody = br
 		m.layoutLogBody = logBody
 
-	case resizeDiffLog:
+	case resizeMiddleLog:
 		repoOuter := panelOuter(repoBody)
-		y0 := repoOuter + panelOuter(statusBody)
-		prevDiffOuter := panelOuter(diffBody)
+		y0 := repoOuter
+		prevMiddleOuter := panelOuter(diffBody)
 		minLogOuter := panelOuter(layoutMinBodyLines)
-		maxDiffOuter := m.height - repoOuter - panelOuter(statusBody) - minLogOuter
-		if maxDiffOuter < minLogOuter {
+		minMiddleOuter := panelOuter(diffBodyFromStackedStatusBranch(layoutMinBodyLines, layoutMinBodyLines))
+		maxMiddleOuter := m.height - repoOuter - minLogOuter
+		if maxMiddleOuter < minMiddleOuter {
 			return
 		}
-		var diffOuter int
-		if y <= y0+prevDiffOuter-1 {
-			diffOuter = y - y0 + 1
+		var middleOuter int
+		if y <= y0+prevMiddleOuter-1 {
+			middleOuter = y - y0 + 1
 		} else {
-			diffOuter = y - y0
+			middleOuter = y - y0
 		}
-		diffOuter = max(minLogOuter, min(diffOuter, maxDiffOuter))
-		diff := diffOuter - 2
-		log := innerTotal - repoBody - statusBody - diff
+		middleOuter = max(minMiddleOuter, min(middleOuter, maxMiddleOuter))
+		diff := middleOuter - 2
+		sumSB := diff - 2
+		if sumSB < 2*layoutMinBodyLines {
+			return
+		}
+		st, br := splitSumSBPreservingRatio(statusBody, branchBody, sumSB)
+		if diffBodyFromStackedStatusBranch(st, br) < layoutMinBodyLines {
+			return
+		}
+		log := innerTotal - repoBody - st - br
 		if log < layoutMinBodyLines {
 			return
 		}
 		m.layoutUseCustomVertical = true
 		m.layoutRepoBody = repoBody
-		m.layoutStatusBody = statusBody
+		m.layoutStatusBody = st
+		m.layoutBranchBody = br
 		m.layoutLogBody = log
 
-	case resizeStatusBranches:
+	case resizeMiddleColumns:
 		if m.width < layoutMinTermWidth {
 			return
 		}
-		statusOuter := x
-		branches := m.width - statusOuter
-		if branches < layoutMinStatusBranchesColumn {
-			branches = layoutMinStatusBranchesColumn
+		leftOuter := x
+		rightOuter := m.width - leftOuter
+		if rightOuter < layoutMinStatusBranchesColumn {
+			rightOuter = layoutMinStatusBranchesColumn
 		}
-		if branches > m.width-layoutMinStatusBranchesColumn {
-			branches = m.width - layoutMinStatusBranchesColumn
+		if rightOuter > m.width-layoutMinStatusBranchesColumn {
+			rightOuter = m.width - layoutMinStatusBranchesColumn
 		}
-		if branches < layoutMinStatusBranchesColumn || branches > m.width-layoutMinStatusBranchesColumn {
+		if rightOuter < layoutMinStatusBranchesColumn || rightOuter > m.width-layoutMinStatusBranchesColumn {
 			return
 		}
-		m.layoutBranchesOuter = branches
+		m.layoutBranchesOuter = rightOuter
 
 	default:
 		return
@@ -193,29 +219,31 @@ func (m *model) applyResizeDrag(x, y int) {
 
 // resizeSplitAt returns which resize handle (if any) lies at (x, y).
 func (m *model) resizeSplitAt(x, y int) (resizeSplit, bool) {
-	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
+	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
+	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
 		return resizeNone, false
 	}
 	repoOuter := panelOuter(repoBody)
 	statusOuter := panelOuter(statusBody)
-	diffOuter := panelOuter(diffBody)
-	statusW, _ := m.statusBranchesOuterWidths(m.width)
+	middleOuter := panelOuter(diffBody)
+	leftOuter, _ := m.middleRowColumnOuterWidths(m.width)
 
 	if nearInt(y, repoOuter-1) || nearInt(y, repoOuter) {
 		return resizeRepoStatus, true
 	}
-	y1 := repoOuter + statusOuter
-	if nearInt(y, y1-1) || nearInt(y, y1) {
-		return resizeStatusDiff, true
+	yMidLog := repoOuter + middleOuter
+	if nearInt(y, yMidLog-1) || nearInt(y, yMidLog) {
+		return resizeMiddleLog, true
 	}
-	y2 := repoOuter + statusOuter + diffOuter
-	if nearInt(y, y2-1) || nearInt(y, y2) {
-		return resizeDiffLog, true
+	if x >= 0 && x < leftOuter && y >= repoOuter && y < repoOuter+middleOuter {
+		yStatusBranch := repoOuter + statusOuter
+		if nearInt(y, yStatusBranch-1) || nearInt(y, yStatusBranch) {
+			return resizeStatusBranch, true
+		}
 	}
-	if x >= 0 && x < m.width && y >= repoOuter && y < repoOuter+statusOuter {
-		if nearInt(x, statusW-1) || nearInt(x, statusW) {
-			return resizeStatusBranches, true
+	if y >= repoOuter && y < repoOuter+middleOuter && x >= 0 {
+		if nearInt(x, leftOuter-1) || nearInt(x, leftOuter) {
+			return resizeMiddleColumns, true
 		}
 	}
 	return resizeNone, false

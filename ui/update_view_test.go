@@ -88,6 +88,26 @@ func TestHandleCommandKeyFocusAndZoom(t *testing.T) {
 		t.Fatalf("shift+tab should move focus back to repo, got focus=%v handled=%v", m.focus, handled)
 	}
 
+	// Full forward cycle: Repo → Status → Branches → Log → Repo (never Diff via Tab).
+	for _, want := range []pane{paneStatus, paneBranches, paneLog, paneRepo} {
+		_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyTab})
+		if !handled || m.focus != want {
+			t.Fatalf("tab full cycle want focus=%v got %v handled=%v", want, m.focus, handled)
+		}
+	}
+
+	m.focus = paneDiff
+	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyTab})
+	if !handled || m.focus != paneLog {
+		t.Fatalf("tab from mouse-focused Diff should go to Log, got focus=%v handled=%v", m.focus, handled)
+	}
+	m.focus = paneDiff
+	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyShiftTab})
+	if !handled || m.focus != paneBranches {
+		t.Fatalf("shift+tab from Diff should go to Branches, got focus=%v handled=%v", m.focus, handled)
+	}
+
+	m.focus = paneRepo
 	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyEnter})
 	if !handled || !m.zoomed || m.zoomTarget != paneRepo {
 		t.Fatalf("enter should enable zoom on focused pane, got zoomed=%v zoomTarget=%v", m.zoomed, m.zoomTarget)
@@ -114,6 +134,38 @@ func TestHandleArrowKeyRepoNavigation(t *testing.T) {
 	_, _, handled = m.handleArrowKey(tea.KeyMsg{Type: tea.KeyDown})
 	if !handled || m.cursor != 1 {
 		t.Fatalf("down should move cursor to 1, got cursor=%d handled=%v", m.cursor, handled)
+	}
+}
+
+// TestHandleArrowKeyStatusDiffFocus verifies →/← moves focus between Status and Diff.
+func TestHandleArrowKeyStatusDiffFocus(t *testing.T) {
+	m := newTestModel()
+	m.width = 120
+	m.height = 40
+	m.focus = paneStatus
+
+	_, _, handled := m.handleArrowKey(tea.KeyMsg{Type: tea.KeyRight})
+	if !handled || m.focus != paneDiff {
+		t.Fatalf("right from status should focus diff, got focus=%v handled=%v", m.focus, handled)
+	}
+
+	_, _, handled = m.handleArrowKey(tea.KeyMsg{Type: tea.KeyLeft})
+	if !handled || m.focus != paneStatus {
+		t.Fatalf("left from diff should focus status, got focus=%v handled=%v", m.focus, handled)
+	}
+
+	m.zoomed = true
+	m.zoomTarget = paneStatus
+	m.focus = paneStatus
+	_, _, handled = m.handleArrowKey(tea.KeyMsg{Type: tea.KeyRight})
+	if !handled || m.focus != paneDiff || m.zoomTarget != paneDiff {
+		t.Fatalf("zoomed right should move focus and zoom target to diff, got focus=%v zoomTarget=%v handled=%v",
+			m.focus, m.zoomTarget, handled)
+	}
+	_, _, handled = m.handleArrowKey(tea.KeyMsg{Type: tea.KeyLeft})
+	if !handled || m.focus != paneStatus || m.zoomTarget != paneStatus {
+		t.Fatalf("zoomed left should move focus and zoom target to status, got focus=%v zoomTarget=%v handled=%v",
+			m.focus, m.zoomTarget, handled)
 	}
 }
 
@@ -180,37 +232,37 @@ func TestRepoListScrollFollowsCursor(t *testing.T) {
 	}
 }
 
-// TestHandleArrowKeyDiffModeToggle verifies staged/worktree diff switching.
-func TestHandleArrowKeyDiffModeToggle(t *testing.T) {
+// TestHandleCommandKeySpaceDiffModeToggle verifies Space toggles staged/worktree diff in the Diff pane.
+func TestHandleCommandKeySpaceDiffModeToggle(t *testing.T) {
 	m := newTestModel()
 	m.focus = paneDiff
 	m.diffMode = diffModeWorktree
 
-	_, _, handled := m.handleArrowKey(tea.KeyMsg{Type: tea.KeyRight})
+	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
 	if !handled || m.diffMode != diffModeStaged {
-		t.Fatalf("right should switch diff mode to staged, got mode=%v handled=%v", m.diffMode, handled)
+		t.Fatalf("space should switch diff mode to staged, got mode=%v handled=%v", m.diffMode, handled)
 	}
 
-	_, _, handled = m.handleArrowKey(tea.KeyMsg{Type: tea.KeyLeft})
+	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
 	if !handled || m.diffMode != diffModeWorktree {
-		t.Fatalf("left should switch diff mode to worktree, got mode=%v handled=%v", m.diffMode, handled)
+		t.Fatalf("space should switch diff mode to worktree, got mode=%v handled=%v", m.diffMode, handled)
 	}
 }
 
-// TestHandleArrowKeyStatusPaneDiffModeToggle verifies Status pane uses the same ←/→ diff mode as Diff.
-func TestHandleArrowKeyStatusPaneDiffModeToggle(t *testing.T) {
+// TestHandleCommandKeyStatusPaneSpaceDiffModeToggle verifies Status pane uses the same Space diff toggle as Diff.
+func TestHandleCommandKeyStatusPaneSpaceDiffModeToggle(t *testing.T) {
 	m := newTestModel()
 	m.focus = paneStatus
 	m.diffMode = diffModeWorktree
 
-	_, _, handled := m.handleArrowKey(tea.KeyMsg{Type: tea.KeyRight})
+	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
 	if !handled || m.diffMode != diffModeStaged {
-		t.Fatalf("right from status should switch diff mode to staged, got mode=%v handled=%v", m.diffMode, handled)
+		t.Fatalf("space from status should switch diff mode to staged, got mode=%v handled=%v", m.diffMode, handled)
 	}
 
-	_, _, handled = m.handleArrowKey(tea.KeyMsg{Type: tea.KeyLeft})
+	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
 	if !handled || m.diffMode != diffModeWorktree {
-		t.Fatalf("left from status should switch diff mode to worktree, got mode=%v handled=%v", m.diffMode, handled)
+		t.Fatalf("space from status should switch diff mode to worktree, got mode=%v handled=%v", m.diffMode, handled)
 	}
 }
 

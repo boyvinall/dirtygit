@@ -47,8 +47,8 @@ func (m *model) repoPaneOuterHeight() (outerH int, ok bool) {
 	if m.height < layoutMinTermHeight || m.width < layoutMinTermWidth {
 		return 0, false
 	}
-	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
+	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
+	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
 		return 0, false
 	}
 	if m.zoomed {
@@ -66,8 +66,8 @@ func (m *model) statusPaneFrame() (topY, outerH, outerW int, ok bool) {
 	if m.height < layoutMinTermHeight || m.width < layoutMinTermWidth {
 		return 0, 0, 0, false
 	}
-	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
+	repoBody, statusBody, branchBody, diffBody, logBody := m.layoutBodies()
+	if repoBody == 0 && statusBody == 0 && branchBody == 0 && diffBody == 0 && logBody == 0 {
 		return 0, 0, 0, false
 	}
 	if m.zoomed {
@@ -78,8 +78,8 @@ func (m *model) statusPaneFrame() (topY, outerH, outerW int, ok bool) {
 	}
 	repoOuter := panelOuter(repoBody)
 	statusOuter := panelOuter(statusBody)
-	statusW, _ := m.statusBranchesOuterWidths(m.width)
-	return repoOuter, statusOuter, statusW, true
+	leftW, _ := m.middleRowColumnOuterWidths(m.width)
+	return repoOuter, statusOuter, leftW, true
 }
 
 // handleMousePaneLineSelect handles left-click row selection when the repo or

@@ -16,7 +16,7 @@ func TestMouseRepoLineSelect(t *testing.T) {
 	m.cursor = 0
 	m.focus = paneRepo
 
-	rb, _, _, _ := m.layoutBodies()
+	rb, _, _, _, _ := m.layoutBodies()
 	repoOuter := panelOuter(rb)
 	if repoOuter < 4 {
 		t.Fatalf("repoOuter=%d too small for test", repoOuter)
@@ -57,7 +57,7 @@ func TestMouseStatusLineSelect(t *testing.T) {
 	m.focus = paneStatus
 	m.syncViewports()
 
-	rb, _, _, _ := m.layoutBodies()
+	rb, _, _, _, _ := m.layoutBodies()
 	statusTop := panelOuter(rb)
 	// First data row: inner starts at statusTop+1, then header, then row 0.
 	y := statusTop + 1 + statusTableHeaderLines(m.statusTable)
@@ -98,7 +98,7 @@ func TestMouseStatusHeaderClickConsumed(t *testing.T) {
 	m.focus = paneStatus
 	m.syncViewports()
 
-	rb, _, _, _ := m.layoutBodies()
+	rb, _, _, _, _ := m.layoutBodies()
 	statusTop := panelOuter(rb)
 	y := statusTop + 1 // first inner line = table header
 	prev := m.statusTable.Cursor()
