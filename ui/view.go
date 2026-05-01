@@ -113,13 +113,14 @@ func (m *model) helpPanel() string {
 	lines := []string{
 		"Click         Focus a pane; in Repositories or Status (when focused), select a row",
 		"Drag (border) Resize adjacent panes (unavailable when zoomed, scanning, on error, or with an overlay open)",
-		"Tab           Next pane: Repositories → Status → Branches → Diff → Log; when zoomed, cycle which pane is fullscreen",
+		"Tab           Next pane: Repositories → Status → Branches → Log (Diff: click or → from Status); when zoomed, cycle which pane is fullscreen",
 		"Shift+Tab     Previous pane; when zoomed, cycle backward",
 		"Enter         Zoom focused pane; Enter again restores the split layout",
 		"Esc           Exit zoom, or clear Status file selection; also closes this help",
 		"↑ / ↓         Move repo selection or scroll Status / Diff / Log",
+		"← / →         Status focused: → focuses Diff; Diff focused: ← focuses Status",
 		"Shift+↑/↓     Same, in steps of 10 lines",
-		"← / →         In Status or Diff: switch Worktree vs Staged diff",
+		"Space         In Status or Diff: toggle Worktree vs Staged diff",
 		"a  r          With a file row selected (Status or Diff): git add / git reset (unstage) that path",
 		"C             With a file row selected (Status or Diff): restore file to last commit (confirms git checkout HEAD -- path)",
 		"s             Scan / rescan",
@@ -286,12 +287,18 @@ func (m *model) framedBlock(p pane, outerW, outerH int, title string, body strin
 	return strings.Join(framed, "\n")
 }
 
-// framedStatusBranchesRow draws Status and Branches as two framed panes side by side.
-func (m *model) framedStatusBranchesRow(outerH int, statusBody, branchesBody string) string {
-	statusOuterW, branchesOuterW := m.statusBranchesOuterWidths(m.width)
-	statusBlock := m.framedBlock(paneStatus, statusOuterW, outerH, "Status", statusBody)
-	branchesBlock := m.framedBlock(paneBranches, branchesOuterW, outerH, "Branches", branchesBody)
-	return lipgloss.JoinHorizontal(lipgloss.Top, statusBlock, branchesBlock)
+// framedMiddleRow draws the middle band: Status above Branches on the left, Diff on the right.
+func (m *model) framedMiddleRow(statusBody, branchBody, diffBody int, statusView, branchView, diffView string) string {
+	leftW, rightW := m.middleRowColumnOuterWidths(m.width)
+	statusOuter := panelOuter(statusBody)
+	branchOuter := panelOuter(branchBody)
+	diffOuter := panelOuter(diffBody)
+	leftCol := lipgloss.JoinVertical(lipgloss.Left,
+		m.framedBlock(paneStatus, leftW, statusOuter, "Status", statusView),
+		m.framedBlock(paneBranches, leftW, branchOuter, "Branches", branchView),
+	)
+	rightCol := m.framedBlock(paneDiff, rightW, diffOuter, "Diff", diffView)
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftCol, rightCol)
 }
 
 // clampRepoScroll keeps repoScrollTop in range and ensures the cursor row is visible.
@@ -332,11 +339,11 @@ func (m *model) clampRepoScroll(innerH int) {
 // syncRepoListScrollOnly updates repoScrollTop for the current cursor; it is
 // cheap and used while keyboard navigation debounces the rest of the UI.
 func (m *model) syncRepoListScrollOnly() {
-	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
+	lay := m.layoutBodies()
+	if lay.isZero() {
 		return
 	}
-	m.clampRepoScroll(repoBody)
+	m.clampRepoScroll(lay.repo)
 }
 
 // repoListView renders the repository list with current selection styling.
@@ -389,10 +396,10 @@ func (m *model) renderScanOverlay() string {
 }
 
 // renderZoomedPane draws only the active pane in fullscreen mode.
-func (m *model) renderZoomedPane(repoBody int) string {
+func (m *model) renderZoomedPane(lay paneLayout) string {
 	switch m.zoomTarget {
 	case paneRepo:
-		return m.framedBlock(paneRepo, m.width, m.height, "Repositories", m.repoListView(repoBody))
+		return m.framedBlock(paneRepo, m.width, m.height, "Repositories", m.repoListView(lay.repo))
 	case paneStatus:
 		return m.framedBlock(paneStatus, m.width, m.height, "Status", m.statusTable.View())
 	case paneBranches:
@@ -407,20 +414,17 @@ func (m *model) renderZoomedPane(repoBody int) string {
 	}
 }
 
-// renderMainStack composes the standard four-pane vertical layout.
-func (m *model) renderMainStack(repoBody, statusBody, diffBody, logBody int) string {
-	repoOuter := panelOuter(repoBody)
-	statusOuter := panelOuter(statusBody)
-	diffOuter := panelOuter(diffBody)
-	logOuter := panelOuter(logBody)
+// renderMainStack composes the standard main layout: repo, middle row (status/branch + diff), log.
+func (m *model) renderMainStack(lay paneLayout) string {
+	repoOuter := panelOuter(lay.repo)
+	logOuter := panelOuter(lay.logBody)
 
-	repoBlock := m.framedBlock(paneRepo, m.width, repoOuter, "Repositories", m.repoListView(repoBody))
-	statusRow := m.framedStatusBranchesRow(statusOuter, m.statusTable.View(), m.branchTable.View())
-	diffBlock := m.framedBlock(paneDiff, m.width, diffOuter, "Diff", m.diffVP.View())
+	repoBlock := m.framedBlock(paneRepo, m.width, repoOuter, "Repositories", m.repoListView(lay.repo))
+	middleRow := m.framedMiddleRow(lay.status, lay.branch, lay.diff, m.statusTable.View(), m.branchTable.View(), m.diffVP.View())
 	m.setLogVPContent()
 	logBlock := m.framedBlock(paneLog, m.width, logOuter, "Log", m.logVP.View())
 
-	return lipgloss.JoinVertical(lipgloss.Left, repoBlock, statusRow, diffBlock, logBlock)
+	return lipgloss.JoinVertical(lipgloss.Left, repoBlock, middleRow, logBlock)
 }
 
 // renderErrorOverlay shows an error dialog with recovery hints.
@@ -457,16 +461,16 @@ func (m *model) View() string {
 		return m.renderScanOverlay()
 	}
 
-	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
-	if repoBody == 0 && statusBody == 0 && diffBody == 0 && logBody == 0 {
+	lay := m.layoutBodies()
+	if lay.isZero() {
 		return ""
 	}
 
 	stack := ""
 	if m.zoomed {
-		stack = m.renderZoomedPane(repoBody)
+		stack = m.renderZoomedPane(lay)
 	} else {
-		stack = m.renderMainStack(repoBody, statusBody, diffBody, logBody)
+		stack = m.renderMainStack(lay)
 	}
 	if m.err != nil {
 		return m.renderErrorOverlay()

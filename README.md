@@ -124,7 +124,7 @@ sits below them. The mouse is enabled: **click** a pane to focus it, or a row in
 splits (unavailable when zoomed, scanning, on error, or with an overlay open). The Status table
 lists dirty files with **Worktree** and **Staged** columns (same left-to-right
 order as the Diff pane). The Diff pane runs `git diff` with basic colorization;
-use **←** / **→** in Status or Diff to switch between **Worktree** and **Staged** views.
+use **Space** in Status or Diff to toggle between **Worktree** and **Staged** views.
 With a file row selected, **a** runs `git add` and **r** runs `git reset` (unstage) on
 that path (from the Status or Diff pane), then the current repo is refreshed. **C**
 asks for confirmation, then runs `git checkout HEAD -- <path>` to restore that path to
@@ -145,12 +145,12 @@ compresses each remote into a short status (`ok`, `missing`, `differs`, or
 | Key                   | Action                                                                                                                                                                               |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | *Mouse*               | Click to focus a pane; in Repositories or Status (when focused), select a row. Drag a border to resize splits (unavailable when zoomed, scanning, on error, or with an overlay open) |
-| `Tab` / `Shift+Tab`   | Next / previous pane; when zoomed, cycle which pane is fullscreen                                                                                                                    |
+| `Tab` / `Shift+Tab`   | Next / previous pane: Repositories, Status, Branches, Log (not Diff; click to focus); when zoomed, cycle fullscreen                                                                  |
 | `Enter`               | Zoom the focused pane; `Enter` again restores the split layout                                                                                                                       |
 | `Esc`                 | Exit zoom, or clear the Status file selection                                                                                                                                        |
 | `↑` / `↓`             | Move repo selection, or scroll Status / Diff / Log                                                                                                                                   |
 | `Shift+↑` / `Shift+↓` | Same, in steps of 10 lines                                                                                                                                                           |
-| `←` / `→`             | In Status or Diff: Worktree vs Staged diff                                                                                                                                           |
+| `Space`               | In Status or Diff: toggle Worktree vs Staged diff                                                                                                                                    |
 | `a` / `r`             | With a status file row selected (Status or Diff): `git add` / `git reset` that path                                                                                                  |
 | `C`                   | With a status file row selected (Status or Diff): confirm, then `git checkout HEAD --` that path (restore to last commit)                                                            |
 | `s`                   | Scan or rescan                                                                                                                                                                       |

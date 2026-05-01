@@ -12,21 +12,16 @@ func TestResizeSplitAtHorizontalSeams(t *testing.T) {
 	m.height = 30
 	m.repoList = []string{"a", "b", "c"}
 
-	repoBody, statusBody, diffBody, _ := m.layoutBodies()
-	repoOuter := panelOuter(repoBody)
-	statusOuter := panelOuter(statusBody)
-	diffOuter := panelOuter(diffBody)
+	lay := m.layoutBodies()
+	repoOuter := panelOuter(lay.repo)
+	middleOuter := panelOuter(lay.diff)
 
 	if k, ok := m.resizeSplitAt(0, repoOuter); !ok || k != resizeRepoStatus {
 		t.Fatalf("resizeSplitAt repo seam y=%d = (%v,%v), want (resizeRepoStatus,true)", repoOuter, k, ok)
 	}
-	y1 := repoOuter + statusOuter
-	if k, ok := m.resizeSplitAt(50, y1); !ok || k != resizeStatusDiff {
-		t.Fatalf("resizeSplitAt status/diff y=%d = (%v,%v), want (resizeStatusDiff,true)", y1, k, ok)
-	}
-	y2 := repoOuter + statusOuter + diffOuter
-	if k, ok := m.resizeSplitAt(50, y2); !ok || k != resizeDiffLog {
-		t.Fatalf("resizeSplitAt diff/log y=%d = (%v,%v), want (resizeDiffLog,true)", y2, k, ok)
+	y1 := repoOuter + middleOuter
+	if k, ok := m.resizeSplitAt(50, y1); !ok || k != resizeMiddleLog {
+		t.Fatalf("resizeSplitAt middle/log y=%d = (%v,%v), want (resizeMiddleLog,true)", y1, k, ok)
 	}
 }
 
@@ -36,12 +31,28 @@ func TestResizeSplitAtVerticalBetweenStatusAndBranches(t *testing.T) {
 	m.height = 30
 	m.repoList = []string{"a", "b", "c"}
 
-	repoBody, _, _, _ := m.layoutBodies()
-	repoOuter := panelOuter(repoBody)
-	statusW, _ := m.statusBranchesOuterWidths(m.width)
-	y := repoOuter + 2
-	if k, ok := m.resizeSplitAt(statusW, y); !ok || k != resizeStatusBranches {
-		t.Fatalf("resizeSplitAt vertical split = (%v,%v), want (resizeStatusBranches,true)", k, ok)
+	l := m.layoutBodies()
+	repoOuter := panelOuter(l.repo)
+	statusOuter := panelOuter(l.status)
+	leftW, _ := m.middleRowColumnOuterWidths(m.width)
+	y := repoOuter + statusOuter - 1
+	if k, ok := m.resizeSplitAt(leftW/2, y); !ok || k != resizeStatusBranch {
+		t.Fatalf("resizeSplitAt status/branch seam = (%v,%v), want (resizeStatusBranch,true)", k, ok)
+	}
+}
+
+func TestResizeSplitAtMiddleColumnDivider(t *testing.T) {
+	m := newTestModel()
+	m.width = 100
+	m.height = 30
+	m.repoList = []string{"a", "b", "c"}
+
+	l := m.layoutBodies()
+	repoOuter := panelOuter(l.repo)
+	leftW, _ := m.middleRowColumnOuterWidths(m.width)
+	y := repoOuter + panelOuter(l.diff)/2
+	if k, ok := m.resizeSplitAt(leftW, y); !ok || k != resizeMiddleColumns {
+		t.Fatalf("resizeSplitAt left/diff column = (%v,%v), want (resizeMiddleColumns,true)", k, ok)
 	}
 }
 
@@ -51,8 +62,8 @@ func TestMouseDragResizesRepoPane(t *testing.T) {
 	m.height = 30
 	m.repoList = []string{"a", "b", "c"}
 
-	before, _, _, _ := m.layoutBodies()
-	repoOuter := panelOuter(before)
+	before := m.layoutBodies()
+	repoOuter := panelOuter(before.repo)
 	press := tea.MouseMsg{
 		X:      0,
 		Y:      repoOuter,
@@ -72,9 +83,9 @@ func TestMouseDragResizesRepoPane(t *testing.T) {
 	}
 	next, _ := mm0.Update(motion)
 	mm := next.(*model)
-	after, _, _, _ := mm.layoutBodies()
-	if after <= before {
-		t.Fatalf("repo body after drag = %d, before = %d, expected larger", after, before)
+	after := mm.layoutBodies()
+	if after.repo <= before.repo {
+		t.Fatalf("repo body after drag = %d, before = %d, expected larger", after.repo, before.repo)
 	}
 	if !mm.layoutUseCustomVertical {
 		t.Fatal("expected layoutUseCustomVertical after resize")

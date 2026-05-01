@@ -37,12 +37,12 @@ func TestPaneAtTerminalCell(t *testing.T) {
 	m.height = 30
 	m.repoList = []string{"a", "b", "c"}
 
-	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
-	repoOuter := panelOuter(repoBody)
-	statusOuter := panelOuter(statusBody)
-	diffOuter := panelOuter(diffBody)
-	logOuter := panelOuter(logBody)
-	statusW, _ := m.statusBranchesOuterWidths(m.width)
+	lay := m.layoutBodies()
+	repoOuter := panelOuter(lay.repo)
+	statusOuter := panelOuter(lay.status)
+	middleOuter := panelOuter(lay.diff)
+	logOuter := panelOuter(lay.logBody)
+	leftW, _ := m.middleRowColumnOuterWidths(m.width)
 
 	tests := []struct {
 		x, y int
@@ -52,19 +52,20 @@ func TestPaneAtTerminalCell(t *testing.T) {
 		{0, 0, paneRepo, true},
 		{99, repoOuter - 1, paneRepo, true},
 		{0, repoOuter, paneStatus, true},
-		{statusW - 1, repoOuter, paneStatus, true},
-		{statusW, repoOuter, paneBranches, true},
-		{0, repoOuter + statusOuter, paneDiff, true},
-		{0, repoOuter + statusOuter + diffOuter, paneLog, true},
-		{0, repoOuter + statusOuter + diffOuter + logOuter - 1, paneLog, true},
+		{leftW - 1, repoOuter, paneStatus, true},
+		{leftW, repoOuter, paneDiff, true},
+		{0, repoOuter + statusOuter, paneBranches, true},
+		{leftW, repoOuter + statusOuter, paneDiff, true},
+		{0, repoOuter + middleOuter, paneLog, true},
+		{0, repoOuter + middleOuter + logOuter - 1, paneLog, true},
 		{-1, 0, paneRepo, false},
 		{0, m.height, paneRepo, false},
 	}
 	for _, tc := range tests {
 		got, ok := m.paneAtTerminalCell(tc.x, tc.y)
 		if ok != tc.ok || got != tc.want {
-			t.Fatalf("paneAtTerminalCell(%d,%d) = (%v,%v), want (%v,%v) repoOuter=%d statusOuter=%d diffOuter=%d logOuter=%d statusW=%d",
-				tc.x, tc.y, got, ok, tc.want, tc.ok, repoOuter, statusOuter, diffOuter, logOuter, statusW)
+			t.Fatalf("paneAtTerminalCell(%d,%d) = (%v,%v), want (%v,%v) repoOuter=%d statusOuter=%d middleOuter=%d logOuter=%d leftW=%d",
+				tc.x, tc.y, got, ok, tc.want, tc.ok, repoOuter, statusOuter, middleOuter, logOuter, leftW)
 		}
 	}
 
@@ -83,10 +84,10 @@ func TestMouseFocusClickUpdatesFocus(t *testing.T) {
 	m.repoList = []string{"a", "b", "c"}
 	m.focus = paneRepo
 
-	rb, sb, _, _ := m.layoutBodies()
+	l := m.layoutBodies()
 	click := tea.MouseMsg{
 		X:      0,
-		Y:      panelOuter(rb) + panelOuter(sb)/2,
+		Y:      panelOuter(l.repo) + panelOuter(l.status)/2,
 		Button: tea.MouseButtonLeft,
 		Action: tea.MouseActionPress,
 	}
@@ -129,12 +130,12 @@ func TestLayoutBodies(t *testing.T) {
 	m.height = 30
 	m.repoList = []string{"a", "b", "c"}
 
-	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
-	if repoBody < 3 || statusBody < 3 || diffBody < 3 || logBody < 3 {
-		t.Fatalf("layoutBodies() = (%d, %d, %d, %d), expected all >= 3", repoBody, statusBody, diffBody, logBody)
+	lay := m.layoutBodies()
+	if lay.repo < 3 || lay.status < 3 || lay.branch < 3 || lay.diff < 3 || lay.logBody < 3 {
+		t.Fatalf("layoutBodies() = (%d, %d, %d, %d, %d), expected all >= 3", lay.repo, lay.status, lay.branch, lay.diff, lay.logBody)
 	}
-	if diffBody < statusBody*3 {
-		t.Fatalf("layoutBodies() expected diff to be at least 3x status, got status=%d diff=%d", statusBody, diffBody)
+	if lay.diff != lay.status+lay.branch+2 {
+		t.Fatalf("layoutBodies() diff=%d want status+branch+2=%d", lay.diff, lay.status+lay.branch+2)
 	}
 }
 
@@ -144,9 +145,9 @@ func TestLayoutBodiesReturnsZerosOnSmallScreen(t *testing.T) {
 	m.width = 10
 	m.height = 10
 
-	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
-	if repoBody != 0 || statusBody != 0 || diffBody != 0 || logBody != 0 {
-		t.Fatalf("layoutBodies() = (%d, %d, %d, %d), want (0,0,0,0)", repoBody, statusBody, diffBody, logBody)
+	lay := m.layoutBodies()
+	if !lay.isZero() {
+		t.Fatalf("layoutBodies() = (%d, %d, %d, %d, %d), want zeros", lay.repo, lay.status, lay.branch, lay.diff, lay.logBody)
 	}
 }
 
@@ -158,9 +159,9 @@ func TestLayoutBodiesZoomedPaneOnly(t *testing.T) {
 	m.zoomed = true
 	m.zoomTarget = paneStatus
 
-	repoBody, statusBody, diffBody, logBody := m.layoutBodies()
-	if repoBody != 0 || diffBody != 0 || logBody != 0 || statusBody == 0 {
-		t.Fatalf("layoutBodies() = (%d, %d, %d, %d), want repo=0 status>0 diff=0 log=0", repoBody, statusBody, diffBody, logBody)
+	lay := m.layoutBodies()
+	if lay.repo != 0 || lay.branch != 0 || lay.diff != 0 || lay.logBody != 0 || lay.status == 0 {
+		t.Fatalf("layoutBodies() = (%d, %d, %d, %d, %d), want repo=0 status>0 branch=0 diff=0 log=0", lay.repo, lay.status, lay.branch, lay.diff, lay.logBody)
 	}
 }
 

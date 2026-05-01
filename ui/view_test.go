@@ -15,37 +15,40 @@ func init() {
 	lipgloss.SetColorProfile(termenv.ANSI256)
 }
 
-// TestStatusBranchesRowUsesFullWidth ensures outer pane widths sum to the terminal width.
-func TestStatusBranchesRowUsesFullWidth(t *testing.T) {
+// TestMiddleRowColumnWidthsSumToTermWidth ensures middle row columns fill the width.
+func TestMiddleRowColumnWidthsSumToTermWidth(t *testing.T) {
 	m := newTestModel()
 	m.width = 100
-	so, bo := m.statusBranchesOuterWidths(m.width)
-	if so+bo != m.width {
-		t.Fatalf("statusOuter(%d) + branchesOuter(%d) = %d, want terminal width %d",
-			so, bo, so+bo, m.width)
+	lo, ro := m.middleRowColumnOuterWidths(m.width)
+	if lo+ro != m.width {
+		t.Fatalf("leftOuter(%d) + rightOuter(%d) = %d, want terminal width %d",
+			lo, ro, lo+ro, m.width)
 	}
-	if so != 50 || bo != 50 {
-		t.Fatalf("default horizontal split = (%d,%d), want (50,50)", so, bo)
+	if lo != 30 || ro != 70 {
+		t.Fatalf("default horizontal split = (%d,%d), want (30,70)", lo, ro)
 	}
 }
 
-func TestStatusBranchesOuterWidthsOddWidthPutsRemainderOnBranches(t *testing.T) {
+func TestMiddleRowColumnOuterWidthsOddWidth(t *testing.T) {
 	m := newTestModel()
 	m.width = 81
-	so, bo := m.statusBranchesOuterWidths(m.width)
-	if so != 40 || bo != 41 {
-		t.Fatalf("statusOuter, branchesOuter = (%d,%d), want (40,41)", so, bo)
+	lo, ro := m.middleRowColumnOuterWidths(m.width)
+	if lo+ro != m.width {
+		t.Fatalf("leftOuter(%d)+rightOuter(%d) != width %d", lo, ro, m.width)
+	}
+	if lo != 25 || ro != 56 {
+		t.Fatalf("leftOuter, rightOuter = (%d,%d), want (25,56)", lo, ro)
 	}
 }
 
 // TestStatusTableViewFitsInnerWidth guards against table padding widening rows past the pane.
 func TestStatusTableViewFitsInnerWidth(t *testing.T) {
 	m := newTestModel()
-	m.width = 80
+	m.width = 100
 	m.height = 30
 	m.repoList = []string{"/repo"}
 	m.syncViewports()
-	si, _ := m.statusBranchesInnerWidths()
+	si, _ := m.middleRowColumnInnerWidths()
 	for _, line := range strings.Split(m.statusTable.View(), "\n") {
 		if line == "" {
 			continue
@@ -73,7 +76,7 @@ func TestBranchTableViewFitsInnerWidth(t *testing.T) {
 		},
 	})
 	m.syncViewports()
-	_, bi := m.statusBranchesInnerWidths()
+	_, bi := m.middleRowColumnInnerWidths()
 	for _, line := range strings.Split(m.branchTable.View(), "\n") {
 		if line == "" {
 			continue
@@ -84,11 +87,12 @@ func TestBranchTableViewFitsInnerWidth(t *testing.T) {
 	}
 }
 
-// blankStatusBranchesRow renders the Status/Branches row with empty table bodies for predictable ANSI.
-func blankStatusBranchesRow(m *model, outerH int) string {
+// blankMiddleRow renders the middle band with empty bodies for predictable ANSI.
+func blankMiddleRow(m *model, statusBody, branchBody, diffBody int) string {
 	m.syncViewports()
-	si, bi := m.statusBranchesInnerWidths()
-	return m.framedStatusBranchesRow(outerH, strings.Repeat(" ", si), strings.Repeat(" ", bi))
+	li, ri := m.middleRowColumnInnerWidths()
+	return m.framedMiddleRow(statusBody, branchBody, diffBody,
+		strings.Repeat(" ", li), strings.Repeat(" ", li), strings.Repeat(" ", ri))
 }
 
 // ansi214Count counts 256-color foreground sequences for lipgloss color 214 (focus accent).
@@ -96,20 +100,21 @@ func ansi214Count(s string) int {
 	return strings.Count(s, "38;5;214m")
 }
 
-// TestFramedStatusBranchesBorderAccentIsolation checks that only the focused pane's border uses
+// TestFramedMiddleRowBorderAccentIsolation checks that only the focused pane's border uses
 // the 214 accent when Status or Branches is focused (repo focus uses none).
-func TestFramedStatusBranchesBorderAccentIsolation(t *testing.T) {
+func TestFramedMiddleRowBorderAccentIsolation(t *testing.T) {
 	m := newTestModel()
 	m.width = 120
 	m.height = 28
 	m.repoList = []string{"/r"}
 
+	sb, bb, db := 4, 4, 10
 	m.focus = paneRepo
-	repo := blankStatusBranchesRow(m, 6)
+	repo := blankMiddleRow(m, sb, bb, db)
 	m.focus = paneStatus
-	st := blankStatusBranchesRow(m, 6)
+	st := blankMiddleRow(m, sb, bb, db)
 	m.focus = paneBranches
-	br := blankStatusBranchesRow(m, 6)
+	br := blankMiddleRow(m, sb, bb, db)
 
 	if c := ansi214Count(repo); c != 0 {
 		t.Fatalf("repo focus: expected no 214 border accents, got %d in %q", c, repo)

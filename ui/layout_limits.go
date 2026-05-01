@@ -18,9 +18,13 @@ const (
 	layoutMinTermWidth  = 20
 	layoutMinTermHeight = 22
 
-	// layoutMinStatusBranchesColumn is a minimum for either status or branches column
-	// when splits are computed or user-resized.
+	// layoutMinStatusBranchesColumn is a minimum width for either middle-row column
+	// (status+branches stack vs diff) when splits are computed or user-resized.
 	layoutMinStatusBranchesColumn = 10
+
+	// layoutDefaultMiddleDiffColumnPct is the default share of terminal width for the
+	// framed Diff column in the middle row (remainder goes to Status+Branches).
+	layoutDefaultMiddleDiffColumnPct = 70
 
 	// layoutMinInnerContentWidth is a floor for content inside borders or viewports
 	// (also used as a placeholder size before syncViewports runs).
