@@ -30,14 +30,14 @@ func TestScanFindsDirtyRepos(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
-	if len(mgs) != 2 {
-		t.Fatalf("Scan() len = %d, want 2, keys=%v", len(mgs), keysOf(mgs))
+	if mgs.Len() != 2 {
+		t.Fatalf("Scan() len = %d, want 2, keys=%v", mgs.Len(), mgs.SortedRepoPaths())
 	}
-	if _, ok := mgs[dirtyA]; !ok {
-		t.Fatalf("missing dirty repo a: %v", keysOf(mgs))
+	if _, ok := mgs.Get(dirtyA); !ok {
+		t.Fatalf("missing dirty repo a: %v", mgs.SortedRepoPaths())
 	}
-	if _, ok := mgs[dirtyB]; !ok {
-		t.Fatalf("missing dirty repo b: %v", keysOf(mgs))
+	if _, ok := mgs.Get(dirtyB); !ok {
+		t.Fatalf("missing dirty repo b: %v", mgs.SortedRepoPaths())
 	}
 }
 
@@ -50,8 +50,8 @@ func TestScanEmptyTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
-	if len(mgs) != 0 {
-		t.Fatalf("want no repos, got %d", len(mgs))
+	if mgs.Len() != 0 {
+		t.Fatalf("want no repos, got %d", mgs.Len())
 	}
 }
 
@@ -86,8 +86,8 @@ func TestScanWithProgressReportsProgress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ScanWithProgress: %v", err)
 	}
-	if len(mgs) != 1 {
-		t.Fatalf("want 1 dirty repo, got %d", len(mgs))
+	if mgs.Len() != 1 {
+		t.Fatalf("want 1 dirty repo, got %d", mgs.Len())
 	}
 	mu.Lock()
 	defer mu.Unlock()
@@ -100,12 +100,7 @@ func TestScanWithProgressReportsProgress(t *testing.T) {
 	if last.ReposFound < 1 || last.ReposChecked < 1 {
 		t.Fatalf("last progress should reflect completed work: %+v", last)
 	}
-}
-
-func keysOf(m MultiGitStatus) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
+	if last.CurrentPath != repo {
+		t.Fatalf("last progress should keep CurrentPath until next repo: got %q want %q", last.CurrentPath, repo)
 	}
-	return out
 }

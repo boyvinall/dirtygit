@@ -59,7 +59,7 @@ func (m *model) finishScan(r scanResult) {
 	}
 
 	m.repositories = r.mgs
-	m.repoList = sortedRepoPaths(r.mgs)
+	m.repoList = r.mgs.SortedRepoPaths()
 	m.statusFileSelected = false
 	m.diffNeedsRefresh = true
 	if m.cursor >= len(m.repoList) {
@@ -247,8 +247,8 @@ func (m *model) deleteSelectedRepoFromDisk() {
 		log.Printf("remove %q: %v", repo, err)
 		return
 	}
-	delete(m.repositories, repo)
-	m.repoList = sortedRepoPaths(m.repositories)
+	m.repositories.Delete(repo)
+	m.repoList = m.repositories.SortedRepoPaths()
 	if m.cursor >= len(m.repoList) {
 		m.cursor = max(0, len(m.repoList)-1)
 	}

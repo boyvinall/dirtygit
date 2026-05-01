@@ -5,6 +5,8 @@ import (
 	"log"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 func reportProgress(onProgress func(ScanProgress), p ScanProgress) {
@@ -14,13 +16,13 @@ func reportProgress(onProgress func(ScanProgress), p ScanProgress) {
 }
 
 // Scan finds all "dirty" git repositories specified by config.
-func Scan(config *Config) (MultiGitStatus, error) {
+func Scan(config *Config) (*MultiGitStatus, error) {
 	return ScanWithProgress(config, nil)
 }
 
 // ScanWithProgress runs the same scan as [Scan] and invokes onProgress from concurrent
 // discovery and the status loop. Callbacks should be non-blocking (e.g. small channel send).
-func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (MultiGitStatus, error) {
+func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitStatus, error) {
 	ex, e := NewExcluder(config.GitIgnore.FileGlob, config.GitIgnore.DirGlob)
 	if e != nil {
 		return nil, e
@@ -40,6 +42,8 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (MultiGitSt
 		start := time.Now()
 		err := Walk(ctx, config, repositories, func(string) {
 			n := found.Add(1)
+			// Discovery found another .git directory; bump ReposFound so the UI can
+			// show how far ahead the walk is versus status checks (ReposChecked).
 			reportProgress(onProgress, ScanProgress{
 				ReposFound:   int(n),
 				ReposChecked: int(checked.Load()),
@@ -51,52 +55,69 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (MultiGitSt
 		}
 	}()
 
-	results := make(MultiGitStatus)
-	totalStatusDuration := time.Duration(0)
+	results := NewMultiGitStatus()
+	var totalStatusDuration int64 // nanoseconds; atomic sum from concurrent workers
+	var eg errgroup.Group
+
 	for d := range repositories {
-		reportProgress(onProgress, ScanProgress{
-			ReposFound:   int(found.Load()),
-			ReposChecked: int(checked.Load()),
-			CurrentPath:  d,
-		})
+		d := d // copy loop variable
+		eg.Go(func() error {
+			// About to run git status for this repo; set CurrentPath so the scan modal
+			// shows which directory is active (and keeps showing it through the rest
+			// of this iteration via the update after GitStatus returns).
+			reportProgress(onProgress, ScanProgress{
+				ReposFound:   int(found.Load()),
+				ReposChecked: int(checked.Load()),
+				CurrentPath:  d,
+			})
 
-		start := time.Now()
+			start := time.Now()
 
-		porcelain, err := GitStatus(d)
-		if err != nil {
-			return nil, err
-		}
-		porcelain = ex.FilterPorcelainStatus(porcelain)
-		st := porcelain.ToGitStatus()
-
-		duration := time.Since(start)
-		log.Println(d, duration)
-
-		n := checked.Add(1)
-		reportProgress(onProgress, ScanProgress{
-			ReposFound:   int(found.Load()),
-			ReposChecked: int(n),
-		})
-
-		branches, err := GitBranchStatus(d)
-		if err != nil {
-			log.Printf("branch status scan failed for %s: %v", d, err)
-		}
-
-		if !st.IsClean() || branches.HasLocalRemoteMismatch() {
-			totalStatusDuration += duration
-			results[d] = RepoStatus{
-				Status:    st,
-				Porcelain: porcelain,
-				Branches:  branches,
-				ScanTime:  duration,
+			porcelain, err := GitStatus(d)
+			if err != nil {
+				return err
 			}
-		}
+			porcelain = ex.FilterPorcelainStatus(porcelain)
+			st := porcelain.ToGitStatus()
+
+			duration := time.Since(start)
+			log.Println(d, duration)
+
+			n := checked.Add(1)
+			// Git status finished for this repo; advance ReposChecked and retain
+			// CurrentPath until the next channel receive so the path line does not
+			// flicker to empty while GitBranchStatus and filtering still run.
+			reportProgress(onProgress, ScanProgress{
+				ReposFound:   int(found.Load()),
+				ReposChecked: int(n),
+				CurrentPath:  d,
+			})
+
+			branches, err := GitBranchStatus(d)
+			if err != nil {
+				log.Printf("branch status scan failed for %s: %v", d, err)
+			}
+
+			if !st.IsClean() || branches.HasLocalRemoteMismatch() {
+				atomic.AddInt64(&totalStatusDuration, duration.Nanoseconds())
+				results.AddResult(d, RepoStatus{
+					Status:    st,
+					Porcelain: porcelain,
+					Branches:  branches,
+					ScanTime:  duration,
+				})
+			}
+			return nil
+		})
 	}
 
+	statusErr := eg.Wait()
 	w := <-ch
+	if statusErr != nil {
+		return nil, statusErr
+	}
 	log.Println("walkDuration:", w.duration)
-	log.Println("statusDuration:", totalStatusDuration)
+	log.Println("statusDuration:", time.Duration(atomic.LoadInt64(&totalStatusDuration)))
 	return results, w.err
 }
 

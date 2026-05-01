@@ -46,15 +46,14 @@ func TestMouseStatusLineSelect(t *testing.T) {
 	m.width = 100
 	m.height = 30
 	m.repoList = []string{"/repo"}
-	m.repositories = scanner.MultiGitStatus{
-		"/repo": {
-			Porcelain: scanner.PorcelainStatus{Entries: []scanner.PorcelainEntry{
-				{Path: "a.go", Worktree: 'M', Staging: ' '},
-				{Path: "b.go", Worktree: 'M', Staging: ' '},
-				{Path: "c.go", Worktree: 'M', Staging: ' '},
-			}},
-		},
-	}
+	m.repositories = scanner.NewMultiGitStatus()
+	m.repositories.Set("/repo", scanner.RepoStatus{
+		Porcelain: scanner.PorcelainStatus{Entries: []scanner.PorcelainEntry{
+			{Path: "a.go", Worktree: 'M', Staging: ' '},
+			{Path: "b.go", Worktree: 'M', Staging: ' '},
+			{Path: "c.go", Worktree: 'M', Staging: ' '},
+		}},
+	})
 	m.focus = paneStatus
 	m.syncViewports()
 
@@ -90,13 +89,12 @@ func TestMouseStatusHeaderClickConsumed(t *testing.T) {
 	m.width = 100
 	m.height = 30
 	m.repoList = []string{"/r"}
-	m.repositories = scanner.MultiGitStatus{
-		"/r": {
-			Porcelain: scanner.PorcelainStatus{Entries: []scanner.PorcelainEntry{
-				{Path: "x.go", Worktree: 'M', Staging: ' '},
-			}},
-		},
-	}
+	m.repositories = scanner.NewMultiGitStatus()
+	m.repositories.Set("/r", scanner.RepoStatus{
+		Porcelain: scanner.PorcelainStatus{Entries: []scanner.PorcelainEntry{
+			{Path: "x.go", Worktree: 'M', Staging: ' '},
+		}},
+	})
 	m.focus = paneStatus
 	m.syncViewports()
 

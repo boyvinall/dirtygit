@@ -2,12 +2,14 @@ package scanner
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
 	"slices"
+	"syscall"
 
-	"github.com/karrick/godirwalk"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -15,67 +17,105 @@ func skip(needle string, haystack []string) bool {
 	return slices.Contains(haystack, needle)
 }
 
+func isGitMetadataDir(path string, d fs.DirEntry) (bool, error) {
+	if d.Name() != ".git" {
+		return false, nil
+	}
+	if d.IsDir() {
+		return true, nil
+	}
+	if d.Type()&os.ModeSymlink != 0 {
+		fi, err := os.Stat(path)
+		if err != nil {
+			return false, err
+		}
+		return fi.IsDir(), nil
+	}
+	return false, nil
+}
+
 // walkone descends a single directory tree looking for git repos.
 // onRepoFound is called for each discovered repo (may be concurrent across roots); nil is safe.
 func walkone(ctx context.Context, dir string, config *Config, results chan string, onRepoFound func(string)) error {
-	err := godirwalk.Walk(dir, &godirwalk.Options{
-		Unsorted:            true,
-		ScratchBuffer:       make([]byte, godirwalk.MinimumScratchBufferSize),
-		FollowSymbolicLinks: config.FollowSymlinks,
-		ErrorCallback: func(path string, err error) godirwalk.ErrorAction {
-			patherr, ok := err.(*os.PathError)
-			if ok {
-				switch patherr.Unwrap().Error() {
-				case "no such file or directory":
-					// might be symlink pointing to non-existent file
-					return godirwalk.SkipNode
-
-				case "too many levels of symbolic links":
-					// skip invalid symlinks
-					return godirwalk.SkipNode
-				}
+	var walkDirFn fs.WalkDirFunc
+	walkDirFn = func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			var pathErr *os.PathError
+			if errors.As(err, &pathErr) && errors.Is(pathErr.Err, os.ErrNotExist) {
+				return nil
+			}
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			if errors.Is(err, syscall.ELOOP) {
+				return nil
 			}
 			log.Printf("ERROR: %s: %v", path, err)
-			return godirwalk.Halt
-		},
-		Callback: func(path string, ent *godirwalk.Dirent) error {
+			return err
+		}
 
-			// early exit?
+		select {
+		case <-ctx.Done():
+			return filepath.SkipDir
+		default:
+		}
 
-			select {
-			case <-ctx.Done():
-				return filepath.SkipDir
-			default:
-			}
+		if skip(path, config.ScanDirs.Exclude) {
+			return filepath.SkipDir
+		}
 
-			// process all the SkipThis rules first
+		if d.Type()&os.ModeSymlink != 0 && !config.FollowSymlinks {
+			return nil
+		}
 
-			if skip(path, config.ScanDirs.Exclude) {
-				return godirwalk.SkipThis
-			}
-			if ent.IsSymlink() && !config.FollowSymlinks {
-				return godirwalk.SkipThis
-			}
-
-			// then process non-matching rules which still descend
-
-			if ent.Name() != ".git" {
+		ok, metaErr := isGitMetadataDir(path, d)
+		if metaErr != nil {
+			if errors.Is(metaErr, os.ErrNotExist) || errors.Is(metaErr, syscall.ELOOP) {
 				return nil
 			}
-			isDir, _ := ent.IsDirOrSymlinkToDir()
-			if !isDir {
-				return nil
-			}
-
+			log.Printf("ERROR: %s: %v", path, metaErr)
+			return metaErr
+		}
+		if ok {
 			repo := filepath.Dir(path)
 			if onRepoFound != nil {
 				onRepoFound(repo)
 			}
 			results <- repo
-			return godirwalk.SkipThis // don't descend further
-		},
-	})
-	return err
+			return filepath.SkipDir
+		}
+
+		if config.FollowSymlinks && d.Type()&os.ModeSymlink != 0 {
+			fi, statErr := os.Stat(path)
+			if statErr != nil {
+				if errors.Is(statErr, os.ErrNotExist) || errors.Is(statErr, syscall.ELOOP) {
+					return nil
+				}
+				log.Printf("ERROR: %s: %v", path, statErr)
+				return statErr
+			}
+			if fi.IsDir() {
+				entries, rdErr := os.ReadDir(path)
+				if rdErr != nil {
+					if errors.Is(rdErr, os.ErrNotExist) || errors.Is(rdErr, syscall.ELOOP) {
+						return nil
+					}
+					log.Printf("ERROR: %s: %v", path, rdErr)
+					return rdErr
+				}
+				for _, ent := range entries {
+					child := filepath.Join(path, ent.Name())
+					if werr := filepath.WalkDir(child, walkDirFn); werr != nil {
+						return werr
+					}
+				}
+			}
+		}
+
+		return nil
+	}
+
+	return filepath.WalkDir(dir, walkDirFn)
 }
 
 // Walk finds all git repositories in the directories specified in config.
@@ -84,10 +124,10 @@ func Walk(ctx context.Context, config *Config, results chan string, onRepoFound 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	var errors errgroup.Group
+	var eg errgroup.Group
 	for i := range config.ScanDirs.Include {
 		j := i // copy loop variable
-		errors.Go(func() error {
+		eg.Go(func() error {
 			err := walkone(ctx, config.ScanDirs.Include[j], config, results, onRepoFound)
 			if err == filepath.SkipDir {
 				cancel()
@@ -97,7 +137,7 @@ func Walk(ctx context.Context, config *Config, results chan string, onRepoFound 
 			return nil
 		})
 	}
-	err := errors.Wait()
+	err := eg.Wait()
 	close(results)
 	return err
 }

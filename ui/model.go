@@ -35,7 +35,7 @@ const (
 
 // scanResult carries the finished scan data and any scan error.
 type scanResult struct {
-	mgs scanner.MultiGitStatus
+	mgs *scanner.MultiGitStatus
 	err error
 }
 
@@ -80,7 +80,7 @@ type model struct {
 	width  int
 	height int
 
-	repositories  scanner.MultiGitStatus
+	repositories  *scanner.MultiGitStatus
 	repoList      []string
 	repoScrollTop int // first visible repo index when the list exceeds pane height
 	cursor        int

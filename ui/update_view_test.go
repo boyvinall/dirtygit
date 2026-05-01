@@ -299,11 +299,9 @@ func TestHandleScanTickFinishesScan(t *testing.T) {
 	m.scanProgressCh = make(chan scanner.ScanProgress, 2)
 	m.scanProgressCh <- scanner.ScanProgress{ReposFound: 1, ReposChecked: 0}
 	m.scanProgressCh <- scanner.ScanProgress{ReposFound: 2, ReposChecked: 1}
-	m.scanResultCh <- scanResult{
-		mgs: scanner.MultiGitStatus{
-			"/repo": {},
-		},
-	}
+	scanMgs := scanner.NewMultiGitStatus()
+	scanMgs.Set("/repo", scanner.RepoStatus{})
+	m.scanResultCh <- scanResult{mgs: scanMgs}
 
 	_, cmd := m.handleScanTick()
 	if cmd != nil {
@@ -340,7 +338,7 @@ func TestWhyInclusionWKey(t *testing.T) {
 	m.focus = paneRepo
 	m.repoList = []string{"/r"}
 	m.cursor = 0
-	m.repositories["/r"] = scanner.RepoStatus{}
+	m.repositories.Set("/r", scanner.RepoStatus{})
 
 	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
 	if !handled {
@@ -376,7 +374,7 @@ func TestDeleteRepoDKey(t *testing.T) {
 	m.height = 30
 	m.focus = paneRepo
 	m.repoList = []string{tmp}
-	m.repositories[tmp] = scanner.RepoStatus{}
+	m.repositories.Set(tmp, scanner.RepoStatus{})
 	m.cursor = 0
 
 	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'D'}})

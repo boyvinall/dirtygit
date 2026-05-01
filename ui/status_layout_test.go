@@ -18,7 +18,7 @@ import (
 func newTestModel() *model {
 	m := &model{
 		logBuf:           &logBuffer{max: 50},
-		repositories:     make(scanner.MultiGitStatus),
+		repositories:     scanner.NewMultiGitStatus(),
 		focus:            paneRepo,
 		statusTable:      newStatusTable(),
 		branchTable:      newBranchTable(),
@@ -166,15 +166,15 @@ func TestLayoutBodiesZoomedPaneOnly(t *testing.T) {
 
 // TestSortedRepoPaths checks repository path ordering is alphabetical.
 func TestSortedRepoPaths(t *testing.T) {
-	got := sortedRepoPaths(scanner.MultiGitStatus{
-		"/z": {},
-		"/a": {},
-		"/m": {},
-	})
+	mgs := scanner.NewMultiGitStatus()
+	mgs.Set("/z", scanner.RepoStatus{})
+	mgs.Set("/a", scanner.RepoStatus{})
+	mgs.Set("/m", scanner.RepoStatus{})
+	got := mgs.SortedRepoPaths()
 	want := []string{"/a", "/m", "/z"}
 	for i := range want {
 		if got[i] != want[i] {
-			t.Fatalf("sortedRepoPaths() = %v, want %v", got, want)
+			t.Fatalf("SortedRepoPaths() = %v, want %v", got, want)
 		}
 	}
 }
@@ -183,14 +183,14 @@ func TestSortedRepoPaths(t *testing.T) {
 func TestRefreshStatusContentUsesPorcelainAndSorts(t *testing.T) {
 	m := newTestModel()
 	m.repoList = []string{"/repo"}
-	m.repositories["/repo"] = scanner.RepoStatus{
+	m.repositories.Set("/repo", scanner.RepoStatus{
 		Porcelain: scanner.PorcelainStatus{
 			Entries: []scanner.PorcelainEntry{
 				{Staging: 'R', Worktree: ' ', OriginalPath: "z-old.go", Path: "a-new.go"},
 				{Staging: 'M', Worktree: ' ', Path: "b.go"},
 			},
 		},
-	}
+	})
 
 	m.refreshStatusContent()
 	rows := m.statusTable.Rows()
@@ -209,12 +209,12 @@ func TestRefreshStatusContentUsesPorcelainAndSorts(t *testing.T) {
 func TestRefreshStatusContentFallsBackToGitStatus(t *testing.T) {
 	m := newTestModel()
 	m.repoList = []string{"/repo"}
-	m.repositories["/repo"] = scanner.RepoStatus{
+	m.repositories.Set("/repo", scanner.RepoStatus{
 		Status: git.Status{
 			"z.go": &git.FileStatus{Staging: 'M', Worktree: ' '},
 			"a.go": &git.FileStatus{Staging: ' ', Worktree: 'D'},
 		},
-	}
+	})
 
 	m.refreshStatusContent()
 	rows := m.statusTable.Rows()
@@ -326,7 +326,7 @@ func TestSetLogVPContentStickyBottom(t *testing.T) {
 func TestRefreshBranchContentOneRowPerBranch(t *testing.T) {
 	m := newTestModel()
 	m.repoList = []string{"/repo"}
-	m.repositories["/repo"] = scanner.RepoStatus{
+	m.repositories.Set("/repo", scanner.RepoStatus{
 		Branches: scanner.BranchStatus{
 			Branch:         "aaa",
 			NewestLocation: "origin",
@@ -348,7 +348,7 @@ func TestRefreshBranchContentOneRowPerBranch(t *testing.T) {
 				}},
 			},
 		},
-	}
+	})
 
 	m.refreshBranchContent(60)
 	cols := m.branchTable.Columns()
@@ -391,7 +391,7 @@ branches:
 	m := newTestModel()
 	m.config = cfg
 	m.repoList = []string{"/repo"}
-	m.repositories["/repo"] = scanner.RepoStatus{
+	m.repositories.Set("/repo", scanner.RepoStatus{
 		Branches: scanner.BranchStatus{
 			Branch:         "aaa",
 			NewestLocation: "origin",
@@ -414,7 +414,7 @@ branches:
 				}},
 			},
 		},
-	}
+	})
 
 	m.refreshBranchContent(60)
 	rows := m.branchTable.Rows()
@@ -451,7 +451,7 @@ branches:
 	m := newTestModel()
 	m.config = cfg
 	m.repoList = []string{"/repo"}
-	m.repositories["/repo"] = scanner.RepoStatus{
+	m.repositories.Set("/repo", scanner.RepoStatus{
 		Branches: scanner.BranchStatus{
 			Branch:         "aaa",
 			NewestLocation: "origin",
@@ -476,7 +476,7 @@ branches:
 				}},
 			},
 		},
-	}
+	})
 
 	m.refreshBranchContent(60)
 	rows := m.branchTable.Rows()
@@ -516,7 +516,7 @@ branches:
 	m := newTestModel()
 	m.config = cfg
 	m.repoList = []string{"/repo"}
-	m.repositories["/repo"] = scanner.RepoStatus{
+	m.repositories.Set("/repo", scanner.RepoStatus{
 		Branches: scanner.BranchStatus{
 			Branch:         "aaa",
 			NewestLocation: "origin",
@@ -535,7 +535,7 @@ branches:
 				}},
 			},
 		},
-	}
+	})
 
 	m.refreshBranchContent(60)
 	rows := m.branchTable.Rows()

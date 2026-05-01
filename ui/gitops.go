@@ -129,10 +129,10 @@ func (m *model) refreshRepoStatusAfterGit() {
 		return
 	}
 	if include {
-		m.repositories[repo] = rs
+		m.repositories.Set(repo, rs)
 	} else {
-		delete(m.repositories, repo)
-		m.repoList = sortedRepoPaths(m.repositories)
+		m.repositories.Delete(repo)
+		m.repoList = m.repositories.SortedRepoPaths()
 		if m.cursor >= len(m.repoList) {
 			m.cursor = max(0, len(m.repoList)-1)
 		}
