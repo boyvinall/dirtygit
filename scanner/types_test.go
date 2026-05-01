@@ -1,6 +1,8 @@
 package scanner
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -160,6 +162,109 @@ func TestBranchStatusHasLocalRemoteMismatch(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBranchStatusHasLocalRemoteMismatchRespectingConfig(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "cfg.yml")
+	content := `
+scandirs:
+  include:
+    - /x
+branches:
+  hidelocalonly:
+    regex:
+      - "^wip/"
+  default:
+    - wip/release
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := ParseConfigFile(cfgPath, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	localOnlyLocs := []BranchLocation{
+		{Name: "local", Exists: true, TipHash: "aaa"},
+		{Name: "origin", Exists: false},
+	}
+
+	t.Run("nil config unchanged from HasLocalRemoteMismatch", func(t *testing.T) {
+		t.Parallel()
+		bs := BranchStatus{
+			Branch:    "wip/foo",
+			Locations: localOnlyLocs,
+			LocalBranches: []LocalBranchRef{
+				{Name: "wip/foo", Current: true, Locations: localOnlyLocs},
+			},
+		}
+		if !bs.HasLocalRemoteMismatch() {
+			t.Fatal("sanity: raw mismatch expected")
+		}
+		if !bs.HasLocalRemoteMismatchRespectingConfig(nil) {
+			t.Fatal("nil config should keep mismatch visible")
+		}
+	})
+
+	t.Run("hide local-only wip branch suppresses mismatch", func(t *testing.T) {
+		t.Parallel()
+		bs := BranchStatus{
+			Branch:    "wip/foo",
+			Locations: localOnlyLocs,
+			LocalBranches: []LocalBranchRef{
+				{Name: "wip/foo", Current: true, Locations: localOnlyLocs},
+			},
+		}
+		if bs.HasLocalRemoteMismatchRespectingConfig(cfg) {
+			t.Fatal("expected hidden local-only branch not to count as mismatch for scan")
+		}
+	})
+
+	t.Run("main branch still mismatches with hide rules", func(t *testing.T) {
+		t.Parallel()
+		bs := BranchStatus{
+			Branch:    "main",
+			Locations: localOnlyLocs,
+			LocalBranches: []LocalBranchRef{
+				{Name: "main", Current: true, Locations: localOnlyLocs},
+			},
+		}
+		if !bs.HasLocalRemoteMismatchRespectingConfig(cfg) {
+			t.Fatal("expected main to still count as mismatch")
+		}
+	})
+
+	t.Run("branches default overrides hide for scan", func(t *testing.T) {
+		t.Parallel()
+		bs := BranchStatus{
+			Branch:    "wip/release",
+			Locations: localOnlyLocs,
+			LocalBranches: []LocalBranchRef{
+				{Name: "wip/release", Current: true, Locations: localOnlyLocs},
+			},
+		}
+		if !bs.HasLocalRemoteMismatchRespectingConfig(cfg) {
+			t.Fatal("wip/release is under branches.default and must still count")
+		}
+	})
+
+	t.Run("synthetic current ref when LocalBranches empty", func(t *testing.T) {
+		t.Parallel()
+		bs := BranchStatus{
+			Branch:         "wip/foo",
+			Detached:       false,
+			Locations:      localOnlyLocs,
+			LocalBranches:  nil,
+			NewestLocation: "local",
+		}
+		if bs.HasLocalRemoteMismatchRespectingConfig(cfg) {
+			t.Fatal("expected synthetic current ref to honor hide policy")
+		}
+	})
 }
 
 func TestLocalBranchRefHasTipMismatchAcrossRemotes(t *testing.T) {

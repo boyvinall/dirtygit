@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 	"strings"
@@ -147,6 +148,45 @@ func (b BranchStatus) HasLocalRemoteMismatch() bool {
 	}
 
 	return hasRemote && local.UniqueCount > 0
+}
+
+// currentLocalRefForHidePolicy returns the checked-out branch as a [LocalBranchRef]
+// for [Config.ShouldHideLocalOnlyBranch], or false when detached or indeterminate.
+func (b BranchStatus) currentLocalRefForHidePolicy() (LocalBranchRef, bool) {
+	if b.Detached {
+		return LocalBranchRef{}, false
+	}
+	for i := range b.LocalBranches {
+		if b.LocalBranches[i].Current {
+			return b.LocalBranches[i], true
+		}
+	}
+	if b.Branch != "" && len(b.Locations) > 0 {
+		return LocalBranchRef{Name: b.Branch, Locations: b.Locations}, true
+	}
+	return LocalBranchRef{}, false
+}
+
+// HasLocalRemoteMismatchRespectingConfig is like [BranchStatus.HasLocalRemoteMismatch]
+// but returns false when the only effective concern is a local-only current branch
+// that [Config.ShouldHideLocalOnlyBranch] would filter out. Branches listed under
+// branches.default still count as a mismatch (same as the branch pane).
+func (b BranchStatus) HasLocalRemoteMismatchRespectingConfig(c *Config) bool {
+	if !b.HasLocalRemoteMismatch() {
+		return false
+	}
+	if c == nil {
+		return true
+	}
+	lb, ok := b.currentLocalRefForHidePolicy()
+	if !ok {
+		return true
+	}
+	if c.ShouldHideLocalOnlyBranch(lb) && !c.AlwaysListBranch(lb.Name) {
+		log.Println("hiding local-only branch", lb.Name)
+		return false
+	}
+	return true
 }
 
 // LocalRemoteMismatchReasons returns a short line explaining why
