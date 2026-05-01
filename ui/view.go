@@ -157,7 +157,7 @@ func (m *model) renderWhyInclusionOverlay() string {
 	if repo == "" {
 		return m.placeCenteredDimModal(roundedModal(boxW).Render("No repository selected."))
 	}
-	rs, ok := m.repositories[repo]
+	rs, ok := m.repositories.Get(repo)
 	if !ok {
 		return m.placeCenteredDimModal(roundedModal(boxW).Render("No status data for this path."))
 	}

@@ -223,16 +223,6 @@ func (m *model) applyViewportAndPanes(syncDiff bool) {
 	m.clampRepoScroll(repoBody)
 }
 
-// sortedRepoPaths returns repository paths in stable alphabetical order.
-func sortedRepoPaths(mgs scanner.MultiGitStatus) []string {
-	paths := make([]string, 0, len(mgs))
-	for r := range mgs {
-		paths = append(paths, r)
-	}
-	sort.Strings(paths)
-	return paths
-}
-
 // newStatusTable builds the status pane table with default styling.
 func newStatusTable() table.Model {
 	t := table.New(
@@ -393,7 +383,7 @@ func (m *model) refreshBranchContent(totalWidth int) {
 	m.branchTable.SetColumns(cols)
 
 	repo := m.currentRepo()
-	st, ok := m.repositories[repo]
+	st, ok := m.repositories.Get(repo)
 	if !ok {
 		m.branchTable.SetRows([]table.Row{{"(select repository)", "-", "-", "-"}})
 		m.branchTable.SetHeight(layoutMinBodyLines)
@@ -492,7 +482,7 @@ func relativeTime(unix int64) string {
 // refreshStatusContent rebuilds status rows for the selected repository.
 func (m *model) refreshStatusContent() {
 	repo := m.currentRepo()
-	st, ok := m.repositories[repo]
+	st, ok := m.repositories.Get(repo)
 	rows := make([]table.Row, 0)
 	paths := make([]string, 0)
 	if ok && len(st.Porcelain.Entries) > 0 {

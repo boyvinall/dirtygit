@@ -61,7 +61,7 @@ func TestBranchTableViewFitsInnerWidth(t *testing.T) {
 	m.width = 100
 	m.height = 30
 	m.repoList = []string{"/repo"}
-	m.repositories["/repo"] = scanner.RepoStatus{
+	m.repositories.Set("/repo", scanner.RepoStatus{
 		Branches: scanner.BranchStatus{
 			Branch:         "main",
 			NewestLocation: "origin",
@@ -71,7 +71,7 @@ func TestBranchTableViewFitsInnerWidth(t *testing.T) {
 				{Name: "upstream", Exists: false},
 			},
 		},
-	}
+	})
 	m.syncViewports()
 	_, bi := m.statusBranchesInnerWidths()
 	for _, line := range strings.Split(m.branchTable.View(), "\n") {

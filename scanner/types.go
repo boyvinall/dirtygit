@@ -18,8 +18,6 @@ type RepoStatus struct {
 	ScanTime  time.Duration
 }
 
-type MultiGitStatus map[string]RepoStatus
-
 type BranchStatus struct {
 	Branch         string
 	Detached       bool

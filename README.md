@@ -197,7 +197,5 @@ A few possibilities listed below, none of this is promised or scheduled.
   “why listed” overlay.
 - **Submodules and worktrees** — scan or label linked worktrees and submodules explicitly instead of treating them
   only as nested `.git` dirs.
-- **Parallel scan** — configurable worker count for status/branch checks, plus clearer cancel behaviour while a
-  scan is running.
 - **Configurable diff** — options such as ignore whitespace or word diff, driven from config, for the Diff pane.
 - **Safer delete housekeeping** — dry-run delete, or move to Trash on macOS instead of only recursive delete.
