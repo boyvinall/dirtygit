@@ -24,7 +24,7 @@ reaches your git server.
 > Use **System Settings → Privacy & Security** and click **Open Anyway** for `dirtygit`, or right-click the
 > binary in Finder and choose **Open** once.
 >
-> This will not be necessary if you install from source.
+> This will not be necessary if you install from [#source](#source).
 
 ### Homebrew
 

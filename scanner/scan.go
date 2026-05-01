@@ -98,7 +98,7 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 				log.Printf("branch status scan failed for %s: %v", d, err)
 			}
 
-			if !st.IsClean() || branches.HasLocalRemoteMismatch() {
+			if !st.IsClean() || branches.HasLocalRemoteMismatchRespectingConfig(config) {
 				atomic.AddInt64(&totalStatusDuration, duration.Nanoseconds())
 				results.AddResult(d, RepoStatus{
 					Status:    st,
@@ -148,6 +148,6 @@ func StatusForRepo(config *Config, dir string) (RepoStatus, bool, error) {
 		Branches:  branches,
 		ScanTime:  time.Since(start),
 	}
-	include := !st.IsClean() || branches.HasLocalRemoteMismatch()
+	include := !st.IsClean() || branches.HasLocalRemoteMismatchRespectingConfig(config)
 	return rs, include, nil
 }
