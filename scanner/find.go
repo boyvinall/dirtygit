@@ -77,6 +77,7 @@ func walkone(ctx context.Context, dir string, config *Config, results chan strin
 			return metaErr
 		}
 		if ok {
+			log.Printf("git %s", path)
 			repo := filepath.Dir(path)
 			if onRepoFound != nil {
 				onRepoFound(repo)
