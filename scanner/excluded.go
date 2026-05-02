@@ -53,9 +53,9 @@ func (e Excluder) FilterPorcelainStatus(st PorcelainStatus) PorcelainStatus {
 	return filtered
 }
 
-func NewExcluder(files, dirs []string) (Excluder, error) {
+func NewExcluder(files, dirs []string) Excluder {
 	return Excluder{
 		files: files,
 		dirs:  dirs,
-	}, nil
+	}
 }

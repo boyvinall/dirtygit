@@ -438,6 +438,97 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 // listKeyScrollPage is the step size for Shift+↑/↓ in scrollable lists and viewports.
 const listKeyScrollPage = 10
 
+// viewportVerticalKey scrolls a viewport by a page (shift arrows) or delegates to Update for single-line motion.
+func viewportVerticalKey(vp viewport.Model, msg tea.KeyMsg, step int, up bool) (viewport.Model, tea.Cmd) {
+	if step == listKeyScrollPage {
+		if up {
+			vp.ScrollUp(listKeyScrollPage)
+		} else {
+			vp.ScrollDown(listKeyScrollPage)
+		}
+		return vp, nil
+	}
+	return vp.Update(msg)
+}
+
+func (m *model) repoListVerticalArrow(step int, up, down bool) (tea.Model, tea.Cmd, bool) {
+	prev := m.cursor
+	if up && m.cursor > 0 {
+		m.cursor = max(0, m.cursor-step)
+	} else if down && len(m.repoList) > 0 && m.cursor < len(m.repoList)-1 {
+		m.cursor = min(len(m.repoList)-1, m.cursor+step)
+	}
+	if m.cursor != prev {
+		m.statusFileSelected = false
+		m.diffNeedsRefresh = true
+		m.syncRepoListScrollOnly()
+		m.repoNavSettleGen++
+		g := m.repoNavSettleGen
+		return m, tea.Tick(repoNavSettleDebounce, func(t time.Time) tea.Msg {
+			return repoNavSettledMsg{gen: g}
+		}), true
+	}
+	return m, nil, true
+}
+
+func (m *model) statusVerticalArrow(msg tea.KeyMsg, step int, up bool) (tea.Model, tea.Cmd, bool) {
+	if !m.statusFileSelected && len(m.statusPaths) > 0 {
+		m.statusFileSelected = true
+		m.statusTable.Focus()
+	}
+	var cmd tea.Cmd
+	if step == listKeyScrollPage {
+		if up {
+			m.statusTable.MoveUp(listKeyScrollPage)
+		} else {
+			m.statusTable.MoveDown(listKeyScrollPage)
+		}
+	} else {
+		m.statusTable, cmd = m.statusTable.Update(msg)
+	}
+	if len(m.statusPaths) > 0 {
+		m.statusFileSelected = true
+		m.diffNeedsRefresh = true
+		m.syncViewports()
+	}
+	return m, cmd, true
+}
+
+func (m *model) focusStatusDiff(toDiff bool) {
+	if toDiff {
+		m.focus = paneDiff
+		if m.zoomed {
+			m.zoomTarget = paneDiff
+		}
+	} else {
+		m.focus = paneStatus
+		if m.zoomed {
+			m.zoomTarget = paneStatus
+		}
+	}
+	m.syncViewports()
+}
+
+func (m *model) handleVerticalArrowKey(msg tea.KeyMsg, step int, up, down bool) (tea.Model, tea.Cmd, bool) {
+	switch m.focus {
+	case paneRepo:
+		return m.repoListVerticalArrow(step, up, down)
+	case paneStatus:
+		return m.statusVerticalArrow(msg, step, up)
+	case paneDiff:
+		var cmd tea.Cmd
+		m.diffVP, cmd = viewportVerticalKey(m.diffVP, msg, step, up)
+		return m, cmd, true
+	case paneLog:
+		m.setLogVPContent()
+		var cmd tea.Cmd
+		m.logVP, cmd = viewportVerticalKey(m.logVP, msg, step, up)
+		return m, cmd, true
+	default:
+		return m, nil, false
+	}
+}
+
 // handleArrowKey applies directional keys: scrolling / repo navigation, and
 // ←/→ to move focus between Status and Diff.
 func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
@@ -449,91 +540,15 @@ func (m *model) handleArrowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 		}
 		up := msg.Type == tea.KeyUp || msg.Type == tea.KeyShiftUp
 		down := msg.Type == tea.KeyDown || msg.Type == tea.KeyShiftDown
-
-		if m.focus == paneRepo {
-			prev := m.cursor
-			if up && m.cursor > 0 {
-				m.cursor = max(0, m.cursor-step)
-			} else if down && len(m.repoList) > 0 && m.cursor < len(m.repoList)-1 {
-				m.cursor = min(len(m.repoList)-1, m.cursor+step)
-			}
-			if m.cursor != prev {
-				m.statusFileSelected = false
-				m.diffNeedsRefresh = true
-				m.syncRepoListScrollOnly()
-				m.repoNavSettleGen++
-				g := m.repoNavSettleGen
-				return m, tea.Tick(repoNavSettleDebounce, func(t time.Time) tea.Msg {
-					return repoNavSettledMsg{gen: g}
-				}), true
-			}
-			return m, nil, true
-		}
-		if m.focus == paneStatus {
-			if !m.statusFileSelected && len(m.statusPaths) > 0 {
-				m.statusFileSelected = true
-				m.statusTable.Focus()
-			}
-			var cmd tea.Cmd
-			if step == listKeyScrollPage {
-				if up {
-					m.statusTable.MoveUp(listKeyScrollPage)
-				} else {
-					m.statusTable.MoveDown(listKeyScrollPage)
-				}
-			} else {
-				m.statusTable, cmd = m.statusTable.Update(msg)
-			}
-			if len(m.statusPaths) > 0 {
-				m.statusFileSelected = true
-				m.diffNeedsRefresh = true
-				m.syncViewports()
-			}
-			return m, cmd, true
-		}
-		if m.focus == paneDiff {
-			if step == listKeyScrollPage {
-				if up {
-					m.diffVP.ScrollUp(listKeyScrollPage)
-				} else {
-					m.diffVP.ScrollDown(listKeyScrollPage)
-				}
-				return m, nil, true
-			}
-			var cmd tea.Cmd
-			m.diffVP, cmd = m.diffVP.Update(msg)
-			return m, cmd, true
-		}
-		if m.focus == paneLog {
-			m.setLogVPContent()
-			if step == listKeyScrollPage {
-				if up {
-					m.logVP.ScrollUp(listKeyScrollPage)
-				} else {
-					m.logVP.ScrollDown(listKeyScrollPage)
-				}
-				return m, nil, true
-			}
-			var cmd tea.Cmd
-			m.logVP, cmd = m.logVP.Update(msg)
-			return m, cmd, true
-		}
+		return m.handleVerticalArrowKey(msg, step, up, down)
 	case tea.KeyRight:
 		if m.focus == paneStatus {
-			m.focus = paneDiff
-			if m.zoomed {
-				m.zoomTarget = paneDiff
-			}
-			m.syncViewports()
+			m.focusStatusDiff(true)
 			return m, nil, true
 		}
 	case tea.KeyLeft:
 		if m.focus == paneDiff {
-			m.focus = paneStatus
-			if m.zoomed {
-				m.zoomTarget = paneStatus
-			}
-			m.syncViewports()
+			m.focusStatusDiff(false)
 			return m, nil, true
 		}
 	}

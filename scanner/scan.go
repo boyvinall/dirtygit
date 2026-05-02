@@ -23,11 +23,6 @@ func Scan(config *Config) (*MultiGitStatus, error) {
 // ScanWithProgress runs the same scan as [Scan] and invokes onProgress from concurrent
 // discovery and the status loop. Callbacks should be non-blocking (e.g. small channel send).
 func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitStatus, error) {
-	ex, e := NewExcluder(config.GitIgnore.FileGlob, config.GitIgnore.DirGlob)
-	if e != nil {
-		return nil, e
-	}
-
 	ctx := context.Background()
 	repositories := make(chan string, 1000)
 
@@ -70,18 +65,10 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 				CurrentPath:  d,
 			})
 
-			start := time.Now()
-
-			porcelain, err := GitStatus(d)
+			rs, include, err := StatusForRepo(config, d)
 			if err != nil {
 				return err
 			}
-			porcelain = ex.FilterPorcelainStatus(porcelain)
-			st := porcelain.ToGitStatus()
-
-			duration := time.Since(start)
-			log.Println(d, duration)
-
 			n := checked.Add(1)
 			// Git status finished for this repo; advance ReposChecked and retain
 			// CurrentPath until the next channel receive so the path line does not
@@ -91,20 +78,11 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 				ReposChecked: int(n),
 				CurrentPath:  d,
 			})
+			log.Println(d, rs.ScanTime)
 
-			branches, err := GitBranchStatus(d)
-			if err != nil {
-				log.Printf("branch status scan failed for %s: %v", d, err)
-			}
-			branches.FilterLocalOnlyForConfig(config)
-			if !st.IsClean() || branches.HasLocalRemoteMismatch() {
-				atomic.AddInt64(&totalStatusDuration, duration.Nanoseconds())
-				results.AddResult(d, RepoStatus{
-					Status:    st,
-					Porcelain: porcelain,
-					Branches:  branches,
-					ScanTime:  duration,
-				})
+			if include {
+				atomic.AddInt64(&totalStatusDuration, rs.ScanTime.Nanoseconds())
+				results.AddResult(d, rs)
 			}
 			return nil
 		})
@@ -123,11 +101,11 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 // StatusForRepo returns fresh status for a single repository directory using the
 // same porcelain filtering and branch metadata as [ScanWithProgress]. The bool
 // is whether this repo should appear in the dirty list (!clean or remote mismatch).
+// If ex is nil, a new excluder is built from config (for single-repo refresh paths).
+// afterPorcelain, if non-nil, is invoked after porcelain is resolved and before
+// branch metadata is collected (used by [ScanWithProgress] for progress timing).
 func StatusForRepo(config *Config, dir string) (RepoStatus, bool, error) {
-	ex, err := NewExcluder(config.GitIgnore.FileGlob, config.GitIgnore.DirGlob)
-	if err != nil {
-		return RepoStatus{}, false, err
-	}
+	ex := NewExcluder(config.GitIgnore.FileGlob, config.GitIgnore.DirGlob)
 	start := time.Now()
 	porcelain, err := GitStatus(dir)
 	if err != nil {
@@ -136,9 +114,9 @@ func StatusForRepo(config *Config, dir string) (RepoStatus, bool, error) {
 	porcelain = ex.FilterPorcelainStatus(porcelain)
 	st := porcelain.ToGitStatus()
 
-	branches, berr := GitBranchStatus(dir)
-	if berr != nil {
-		log.Printf("branch status scan failed for %s: %v", dir, berr)
+	branches, err := GitBranchStatus(dir)
+	if err != nil {
+		log.Printf("branch status scan failed for %s: %v", dir, err)
 	}
 	branches.FilterLocalOnlyForConfig(config)
 
