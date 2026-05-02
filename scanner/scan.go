@@ -60,7 +60,6 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 	var eg errgroup.Group
 
 	for d := range repositories {
-		d := d // copy loop variable
 		eg.Go(func() error {
 			// About to run git status for this repo; set CurrentPath so the scan modal
 			// shows which directory is active (and keeps showing it through the rest
@@ -97,8 +96,8 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 			if err != nil {
 				log.Printf("branch status scan failed for %s: %v", d, err)
 			}
-
-			if !st.IsClean() || branches.HasLocalRemoteMismatchRespectingConfig(config) {
+			branches.FilterLocalOnlyForConfig(config)
+			if !st.IsClean() || branches.HasLocalRemoteMismatch() {
 				atomic.AddInt64(&totalStatusDuration, duration.Nanoseconds())
 				results.AddResult(d, RepoStatus{
 					Status:    st,
@@ -141,6 +140,7 @@ func StatusForRepo(config *Config, dir string) (RepoStatus, bool, error) {
 	if berr != nil {
 		log.Printf("branch status scan failed for %s: %v", dir, berr)
 	}
+	branches.FilterLocalOnlyForConfig(config)
 
 	rs := RepoStatus{
 		Status:    st,
@@ -148,6 +148,6 @@ func StatusForRepo(config *Config, dir string) (RepoStatus, bool, error) {
 		Branches:  branches,
 		ScanTime:  time.Since(start),
 	}
-	include := !st.IsClean() || branches.HasLocalRemoteMismatchRespectingConfig(config)
+	include := !st.IsClean() || branches.HasLocalRemoteMismatch()
 	return rs, include, nil
 }
