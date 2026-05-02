@@ -111,59 +111,46 @@ func refTip(d, ref string) (hash string, unix int64, exists bool, err error) {
 	return parts[0], unix, true, nil
 }
 
-func uniqueCommitInfo(d, ref string, otherRefs []string) (count int, newestUnix int64, err error) {
+// branchLocationRef returns the full ref for a location row (local heads vs
+// refs/remotes) for use with git commands; it is not stored on [BranchLocation].
+func branchLocationRef(locationName, branchName string) string {
+	if locationName == "local" {
+		return "refs/heads/" + branchName
+	}
+	return "refs/remotes/" + locationName + "/" + branchName
+}
+
+func uniqueCommitCount(d, ref string, otherRefs []string) (count int, err error) {
 	if len(otherRefs) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	args := []string{"rev-list", "--count", ref, "--not"}
 	args = append(args, otherRefs...)
 	out, err := runGit(d, args...)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	count, err = strconv.Atoi(strings.TrimSpace(out))
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	if count == 0 {
-		return 0, 0, nil
-	}
-
-	args = []string{"log", "-1", "--format=%ct", ref, "--not"}
-	args = append(args, otherRefs...)
-	out, err = runGit(d, args...)
-	if err != nil {
-		return count, 0, err
-	}
-	if strings.TrimSpace(out) == "" {
-		return count, 0, nil
-	}
-	newestUnix, err = strconv.ParseInt(strings.TrimSpace(out), 10, 64)
-	if err != nil {
-		return count, 0, err
-	}
-	return count, newestUnix, nil
+	return count, nil
 }
 
 // computeBranchLocations compares refs/heads/<branchName> to refs/remotes/<r>/<branchName>
-// for each configured remote and fills UniqueCount / NewestUniqueUnix per location.
-func computeBranchLocations(d, branchName string, remotes []string) ([]BranchLocation, string, error) {
+// for each configured remote and fills UniqueCount per location.
+func computeBranchLocations(d, branchName string, remotes []string) ([]BranchLocation, error) {
 	locations := make([]BranchLocation, 0, 1+len(remotes))
-	locations = append(locations, BranchLocation{
-		Name: "local",
-		Ref:  "refs/heads/" + branchName,
-	})
+	locations = append(locations, BranchLocation{Name: "local"})
 	for _, remote := range remotes {
-		locations = append(locations, BranchLocation{
-			Name: remote,
-			Ref:  "refs/remotes/" + remote + "/" + branchName,
-		})
+		locations = append(locations, BranchLocation{Name: remote})
 	}
 
 	for i := range locations {
-		hash, unix, exists, err := refTip(d, locations[i].Ref)
+		ref := branchLocationRef(locations[i].Name, branchName)
+		hash, unix, exists, err := refTip(d, ref)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		locations[i].Exists = exists
 		locations[i].TipHash = hash
@@ -173,63 +160,56 @@ func computeBranchLocations(d, branchName string, remotes []string) ([]BranchLoc
 	existingRefs := make([]string, 0, len(locations))
 	for _, loc := range locations {
 		if loc.Exists {
-			existingRefs = append(existingRefs, loc.Ref)
+			existingRefs = append(existingRefs, branchLocationRef(loc.Name, branchName))
 		}
 	}
 	for i := range locations {
 		if !locations[i].Exists {
 			continue
 		}
+		ref := branchLocationRef(locations[i].Name, branchName)
 		others := make([]string, 0, len(existingRefs)-1)
-		for _, ref := range existingRefs {
-			if ref != locations[i].Ref {
-				others = append(others, ref)
+		for _, otherRef := range existingRefs {
+			if otherRef != ref {
+				others = append(others, otherRef)
 			}
 		}
-		count, newestUnix, err := uniqueCommitInfo(d, locations[i].Ref, others)
+		count, err := uniqueCommitCount(d, ref, others)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		locations[i].UniqueCount = count
-		locations[i].NewestUniqueUnix = newestUnix
 	}
 
 	if len(locations) > 0 && locations[0].Exists {
-		localRef := locations[0].Ref
+		localRef := branchLocationRef("local", branchName)
 		for i := 1; i < len(locations); i++ {
 			if !locations[i].Exists {
 				continue
 			}
 			related, err := haveMergeBase(d, locations[0].TipHash, locations[i].TipHash)
 			if err != nil {
-				return nil, "", err
+				return nil, err
 			}
 			if !related {
 				locations[i].HistoriesUnrelated = true
 				continue
 			}
-			incoming, _, err := uniqueCommitInfo(d, locations[i].Ref, []string{localRef})
+			remoteRef := branchLocationRef(locations[i].Name, branchName)
+			incoming, err := uniqueCommitCount(d, remoteRef, []string{localRef})
 			if err != nil {
-				return nil, "", err
+				return nil, err
 			}
-			outgoing, _, err := uniqueCommitInfo(d, localRef, []string{locations[i].Ref})
+			outgoing, err := uniqueCommitCount(d, localRef, []string{remoteRef})
 			if err != nil {
-				return nil, "", err
+				return nil, err
 			}
 			locations[i].Incoming = incoming
 			locations[i].Outgoing = outgoing
 		}
 	}
 
-	newestLocation := ""
-	var newestUnix int64
-	for _, loc := range locations {
-		if loc.NewestUniqueUnix > newestUnix {
-			newestUnix = loc.NewestUniqueUnix
-			newestLocation = loc.Name
-		}
-	}
-	return locations, newestLocation, nil
+	return locations, nil
 }
 
 func GitBranchStatus(d string) (BranchStatus, error) {
@@ -256,46 +236,42 @@ func GitBranchStatus(d string) (BranchStatus, error) {
 	}
 
 	if len(locals) == 0 {
-		locations, newestLocation, err := computeBranchLocations(d, branch, remotes)
+		locations, err := computeBranchLocations(d, branch, remotes)
 		if err != nil {
 			return BranchStatus{}, err
 		}
 		return BranchStatus{
-			Branch:         branch,
-			Detached:       false,
-			Locations:      locations,
-			NewestLocation: newestLocation,
-			LocalBranches:  nil,
+			Branch:        branch,
+			Detached:      false,
+			Locations:     locations,
+			LocalBranches: nil,
 		}, nil
 	}
 
 	var topLocations []BranchLocation
-	var topNewest string
 	for i := range locals {
-		locs, newest, err := computeBranchLocations(d, locals[i].Name, remotes)
+		locs, err := computeBranchLocations(d, locals[i].Name, remotes)
 		if err != nil {
 			return BranchStatus{}, err
 		}
 		locals[i].Locations = locs
 		if locals[i].Current {
 			topLocations = locs
-			topNewest = newest
 		}
 	}
 
 	if topLocations == nil {
 		var err2 error
-		topLocations, topNewest, err2 = computeBranchLocations(d, branch, remotes)
+		topLocations, err2 = computeBranchLocations(d, branch, remotes)
 		if err2 != nil {
 			return BranchStatus{}, err2
 		}
 	}
 
 	return BranchStatus{
-		Branch:         branch,
-		Detached:       false,
-		Locations:      topLocations,
-		NewestLocation: topNewest,
-		LocalBranches:  locals,
+		Branch:        branch,
+		Detached:      false,
+		Locations:     topLocations,
+		LocalBranches: locals,
 	}, nil
 }

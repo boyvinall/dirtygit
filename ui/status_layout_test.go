@@ -329,18 +329,17 @@ func TestRefreshBranchContentOneRowPerBranch(t *testing.T) {
 	m.repoList = []string{"/repo"}
 	m.repositories.Set("/repo", scanner.RepoStatus{
 		Branches: scanner.BranchStatus{
-			Branch:         "aaa",
-			NewestLocation: "origin",
+			Branch: "aaa",
 			Locations: []scanner.BranchLocation{
 				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
 				{Name: "upstream", Exists: false},
 			},
 			// Names sort opposite to recency so the test proves UI order is by tip time, not name.
 			LocalBranches: []scanner.LocalBranchRef{
 				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
 					{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
 					{Name: "upstream", Exists: false},
 				}},
 				{Name: "zzz", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false, Locations: []scanner.BranchLocation{
@@ -394,16 +393,15 @@ branches:
 	m.repoList = []string{"/repo"}
 	m.repositories.Set("/repo", scanner.RepoStatus{
 		Branches: scanner.BranchStatus{
-			Branch:         "aaa",
-			NewestLocation: "origin",
+			Branch: "aaa",
 			Locations: []scanner.BranchLocation{
 				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
 			},
 			LocalBranches: []scanner.LocalBranchRef{
 				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
 					{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
 				}},
 				{Name: "wip/hidden", TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003, Current: false, Locations: []scanner.BranchLocation{
 					{Name: "local", Exists: true, TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003},
@@ -457,16 +455,15 @@ branches:
 	m.repoList = []string{"/repo"}
 	m.repositories.Set("/repo", scanner.RepoStatus{
 		Branches: scanner.BranchStatus{
-			Branch:         "aaa",
-			NewestLocation: "origin",
+			Branch: "aaa",
 			Locations: []scanner.BranchLocation{
 				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
 			},
 			LocalBranches: []scanner.LocalBranchRef{
 				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
 					{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
 				}},
 				{Name: "main", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false, Locations: []scanner.BranchLocation{
 					{Name: "local", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
@@ -513,17 +510,16 @@ branches:
 	m.repoList = []string{"/repo"}
 	m.repositories.Set("/repo", scanner.RepoStatus{
 		Branches: scanner.BranchStatus{
-			Branch:         "aaa",
-			NewestLocation: "origin",
+			Branch: "aaa",
 			Locations: []scanner.BranchLocation{
 				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
 				{Name: "upstream", Exists: false},
 			},
 			LocalBranches: []scanner.LocalBranchRef{
 				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
 					{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, NewestUniqueUnix: 1_700_000_001, Incoming: 1, Outgoing: 2},
+					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
 					{Name: "upstream", Exists: false},
 				}},
 				{Name: "main", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false, Locations: []scanner.BranchLocation{
