@@ -13,10 +13,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func skip(needle string, haystack []string) bool {
-	return slices.Contains(haystack, needle)
-}
-
 func isGitMetadataDir(path string, d fs.DirEntry) (bool, error) {
 	if d.Name() != ".git" {
 		return false, nil
@@ -60,7 +56,11 @@ func walkone(ctx context.Context, dir string, config *Config, results chan strin
 		default:
 		}
 
-		if skip(path, config.ScanDirs.Exclude) {
+		if d.IsDir() {
+			log.Printf("path %s", path)
+		}
+
+		if slices.Contains(config.ScanDirs.Exclude, path) {
 			return filepath.SkipDir
 		}
 

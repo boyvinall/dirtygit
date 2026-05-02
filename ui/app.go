@@ -31,7 +31,7 @@ func Run(config *scanner.Config) error {
 
 	m := &model{
 		config:           config,
-		logBuf:           &logBuffer{max: 500},
+		logBuf:           &logBuffer{max: 10000},
 		repositories:     scanner.NewMultiGitStatus(),
 		focus:            paneRepo,
 		scanResultCh:     make(chan scanResult, 1),
