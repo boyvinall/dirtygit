@@ -32,7 +32,7 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 		err      error
 		duration time.Duration
 	}
-	ch := make(chan walkResult)
+	ch := make(chan walkResult, 1)
 	go func() {
 		start := time.Now()
 		err := Walk(ctx, config, repositories, func(string) {
@@ -51,39 +51,32 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 	}()
 
 	results := NewMultiGitStatus()
-	var totalStatusDuration int64 // nanoseconds; atomic sum from concurrent workers
 	var eg errgroup.Group
 
 	for d := range repositories {
 		eg.Go(func() error {
-			// About to run git status for this repo; set CurrentPath so the scan modal
-			// shows which directory is active (and keeps showing it through the rest
-			// of this iteration via the update after GitStatus returns).
+			// About to run StatusForRepo for this path; set CurrentPath so the scan modal
+			// shows which directory is active until this worker finishes and the UI updates.
 			reportProgress(onProgress, ScanProgress{
 				ReposFound:   int(found.Load()),
 				ReposChecked: int(checked.Load()),
 				CurrentPath:  d,
 			})
 
-			statusStart := time.Now()
 			rs, include, err := StatusForRepo(config, d)
-			statusDur := time.Since(statusStart)
 			if err != nil {
 				return err
 			}
 			n := checked.Add(1)
-			// Git status finished for this repo; advance ReposChecked and retain
-			// CurrentPath until the next channel receive so the path line does not
-			// flicker to empty while GitBranchStatus and filtering still run.
+			// Per-repo StatusForRepo finished; advance ReposChecked and retain
+			// CurrentPath until the next progress event so the path line does not flicker.
 			reportProgress(onProgress, ScanProgress{
 				ReposFound:   int(found.Load()),
 				ReposChecked: int(n),
 				CurrentPath:  d,
 			})
-			log.Println(d, statusDur)
 
 			if include {
-				atomic.AddInt64(&totalStatusDuration, statusDur.Nanoseconds())
 				results.AddResult(d, rs)
 			}
 			return nil
@@ -95,8 +88,6 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 	if statusErr != nil {
 		return nil, statusErr
 	}
-	log.Println("walkDuration:", w.duration)
-	log.Println("statusDuration:", time.Duration(atomic.LoadInt64(&totalStatusDuration)))
 	return results, w.err
 }
 
@@ -113,19 +104,18 @@ func StatusForRepo(config *Config, dir string) (RepoStatus, bool, error) {
 		return RepoStatus{}, false, err
 	}
 	porcelain = ex.FilterPorcelainStatus(porcelain)
-	st := porcelain.ToGitStatus()
-
-	branches, err := GitBranchStatus(dir)
+	branch, detached, branches, err := GitBranchStatus(dir)
 	if err != nil {
 		log.Printf("branch status scan failed for %s: %v", dir, err)
 	}
-	branches.FilterLocalOnlyForConfig(config)
 
 	rs := RepoStatus{
-		Status:    st,
+		Branch:    branch,
+		Detached:  detached,
 		Porcelain: porcelain,
 		Branches:  branches,
 	}
-	include := !st.IsClean() || branches.HasLocalRemoteMismatch()
+	rs.FilteredBranches = rs.Filter(config)
+	include := !porcelain.ToGitStatus().IsClean() || rs.HasUnpushedChanges(config)
 	return rs, include, nil
 }

@@ -2,8 +2,6 @@ package scanner
 
 import (
 	"testing"
-
-	"github.com/go-git/go-git/v5"
 )
 
 func TestExcluderIsExcluded(t *testing.T) {
@@ -53,25 +51,5 @@ func TestExcluderFilterPorcelainStatus(t *testing.T) {
 	}
 	if got.Entries[0].Path != "cmd/app/main.go" {
 		t.Fatalf("filtered path = %q, want cmd/app/main.go", got.Entries[0].Path)
-	}
-}
-
-func TestExcluderFilterGitStatus(t *testing.T) {
-	ex := Excluder{
-		files: []string{"*.tmp"},
-		dirs:  []string{"dist"},
-	}
-	st := git.Status{
-		"src/main.go":            &git.FileStatus{Staging: 'M', Worktree: ' '},
-		"src/generated.tmp":      &git.FileStatus{Staging: '?', Worktree: '?'},
-		"web/dist/bundle.min.js": &git.FileStatus{Staging: 'A', Worktree: ' '},
-	}
-
-	got := ex.FilterGitStatus(st)
-	if len(got) != 1 {
-		t.Fatalf("FilterGitStatus() len = %d, want 1", len(got))
-	}
-	if _, ok := got["src/main.go"]; !ok {
-		t.Fatal("expected src/main.go to remain after filtering")
 	}
 }

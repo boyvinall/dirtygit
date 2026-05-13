@@ -23,7 +23,7 @@ func (m *model) openCurrentRepo() {
 		return
 	}
 	cmd := exec.Command(argv[0], argv[1:]...)
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
 		log.Printf("edit %q: %v", argv[0], err)
 	}
 }
@@ -129,7 +129,7 @@ func (m *model) refreshRepoStatusAfterGit() {
 		return
 	}
 	if include {
-		m.repositories.Set(repo, rs)
+		m.repositories.AddResult(repo, rs)
 	} else {
 		m.repositories.Delete(repo)
 		m.repoList = m.repositories.SortedRepoPaths()

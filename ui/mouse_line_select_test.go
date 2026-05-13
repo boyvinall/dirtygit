@@ -1,12 +1,30 @@
 package ui
 
 import (
+	"reflect"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/boyvinall/dirtygit/scanner"
 )
+
+// TestBubblesTableInternalFields guards against upstream field renames that
+// would cause bubblesTableSlice and bubblesTableViewportYOffset to silently
+// return zeros. Field names are verified against bubbles v1.0.0 (go.mod).
+func TestBubblesTableInternalFields(t *testing.T) {
+	typ := reflect.TypeOf(table.Model{})
+	for _, name := range []string{"start", "end", "viewport"} {
+		if _, ok := typ.FieldByName(name); !ok {
+			t.Errorf("bubbles/table.Model missing field %q — update bubblesTableSlice/bubblesTableViewportYOffset in mouse_line_select.go", name)
+		}
+	}
+	vpField, _ := typ.FieldByName("viewport")
+	if _, ok := vpField.Type.FieldByName("YOffset"); !ok {
+		t.Error("bubbles viewport.Model missing field \"YOffset\" — update bubblesTableViewportYOffset in mouse_line_select.go")
+	}
+}
 
 func TestMouseRepoLineSelect(t *testing.T) {
 	m := newTestModel()
@@ -47,7 +65,7 @@ func TestMouseStatusLineSelect(t *testing.T) {
 	m.height = 30
 	m.repoList = []string{"/repo"}
 	m.repositories = scanner.NewMultiGitStatus()
-	m.repositories.Set("/repo", scanner.RepoStatus{
+	m.repositories.AddResult("/repo", scanner.RepoStatus{
 		Porcelain: scanner.PorcelainStatus{Entries: []scanner.PorcelainEntry{
 			{Path: "a.go", Worktree: 'M', Staging: ' '},
 			{Path: "b.go", Worktree: 'M', Staging: ' '},
@@ -90,7 +108,7 @@ func TestMouseStatusHeaderClickConsumed(t *testing.T) {
 	m.height = 30
 	m.repoList = []string{"/r"}
 	m.repositories = scanner.NewMultiGitStatus()
-	m.repositories.Set("/r", scanner.RepoStatus{
+	m.repositories.AddResult("/r", scanner.RepoStatus{
 		Porcelain: scanner.PorcelainStatus{Entries: []scanner.PorcelainEntry{
 			{Path: "x.go", Worktree: 'M', Staging: ' '},
 		}},

@@ -16,7 +16,9 @@ import (
 
 func getDefaultConfigPath() string {
 	home, err := homedir.Dir()
-	_ = err // ignore
+	if err != nil {
+		fmt.Println("WARNING: Unable to determine home directory for default config path")
+	}
 	return filepath.Join(home, ".dirtygit.yml")
 }
 
@@ -34,6 +36,9 @@ func main() {
 		EnableShellCompletion: true,
 		CommandNotFound: func(ctx context.Context, cmd *cli.Command, name string) {
 			fmt.Printf("ERROR: Unknown command '%s'\n", name)
+		},
+		Commands: []*cli.Command{
+			reportCommand(),
 		},
 		Flags: []cli.Flag{
 			&cli.StringFlag{

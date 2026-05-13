@@ -31,19 +31,6 @@ func (m *MultiGitStatus) AddResult(path string, rs RepoStatus) {
 	m.m[path] = rs
 }
 
-// Set replaces status for path (typically the UI thread after a scan completes).
-func (m *MultiGitStatus) Set(path string, rs RepoStatus) {
-	if m == nil {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.m == nil {
-		m.m = make(map[string]RepoStatus)
-	}
-	m.m[path] = rs
-}
-
 // Delete removes path from the set.
 func (m *MultiGitStatus) Delete(path string) {
 	if m == nil {

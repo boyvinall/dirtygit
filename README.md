@@ -184,9 +184,17 @@ Run the following to see all available make targets:
 make help
 ```
 
-## Future
+## TODO
 
-A few possibilities listed below, none of this is promised or scheduled.
+This stuff needs doing:
+
+- replace runGit and other git operations with a git package
+
+consider also:
+
+- ? unify view current working directory with other branches
+
+and maybe in future:
 
 - **More tool integration** - beyond `e` (edit) and `t` (terminal), maybe a git gui.  And better configurability.
 - **Machine-readable output** — JSON or similar (flag or subcommand) for scripting and CI (e.g. exit non-zero if

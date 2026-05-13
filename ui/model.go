@@ -112,8 +112,7 @@ type model struct {
 
 	err error
 
-	helpOpen    bool
-	whyRepoOpen bool
+	helpOpen bool
 	// deleteRepoConfirmOpen shows the recursive-delete confirmation for the selected repository path.
 	deleteRepoConfirmOpen bool
 	// deleteStatusFileConfirmOpen asks before deleting the selected status path from disk.

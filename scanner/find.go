@@ -56,10 +56,6 @@ func walkone(ctx context.Context, dir string, config *Config, results chan strin
 		default:
 		}
 
-		if d.IsDir() {
-			log.Printf("path %s", path)
-		}
-
 		if slices.Contains(config.ScanDirs.Exclude, path) {
 			return filepath.SkipDir
 		}
@@ -77,7 +73,7 @@ func walkone(ctx context.Context, dir string, config *Config, results chan strin
 			return metaErr
 		}
 		if ok {
-			log.Printf("git %s", path)
+			// log.Printf("git %s", path)
 			repo := filepath.Dir(path)
 			if onRepoFound != nil {
 				onRepoFound(repo)
@@ -127,9 +123,8 @@ func Walk(ctx context.Context, config *Config, results chan string, onRepoFound 
 
 	var eg errgroup.Group
 	for i := range config.ScanDirs.Include {
-		j := i // copy loop variable
 		eg.Go(func() error {
-			err := walkone(ctx, config.ScanDirs.Include[j], config, results, onRepoFound)
+			err := walkone(ctx, config.ScanDirs.Include[i], config, results, onRepoFound)
 			if err == filepath.SkipDir {
 				cancel()
 			} else if err != nil {

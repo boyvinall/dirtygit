@@ -64,15 +64,16 @@ func TestBranchTableViewFitsInnerWidth(t *testing.T) {
 	m.width = 100
 	m.height = 30
 	m.repoList = []string{"/repo"}
-	m.repositories.Set("/repo", scanner.RepoStatus{
-		Branches: scanner.BranchStatus{
-			Branch: "main",
+	m.repositories.AddResult("/repo", scanner.RepoStatus{
+		Branch: "main",
+		Branches: []scanner.LocalBranchRef{{
+			Name: "main", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true,
 			Locations: []scanner.BranchLocation{
 				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
 				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
 				{Name: "upstream", Exists: false},
 			},
-		},
+		}},
 	})
 	m.syncViewports()
 	_, bi := m.middleRowColumnInnerWidths()
