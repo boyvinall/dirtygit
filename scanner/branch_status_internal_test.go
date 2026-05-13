@@ -44,7 +44,7 @@ func TestHaveMergeBaseUnrelatedHistories(t *testing.T) {
 	}
 }
 
-func TestUniqueCommitInfoAheadOnBranch(t *testing.T) {
+func TestUniqueCommitCountAheadOnBranch(t *testing.T) {
 	dir := t.TempDir()
 	gitMinimalInit(t, dir)
 	gitCommitFile(t, dir, "f.txt", "v0\n", "base")
@@ -52,15 +52,12 @@ func TestUniqueCommitInfoAheadOnBranch(t *testing.T) {
 	gitCommitFile(t, dir, "f.txt", "v0\nv1\n", "ahead-only")
 	execGit(t, dir, "checkout", "main")
 
-	n, newest, err := uniqueCommitInfo(dir, "refs/heads/ahead", []string{"refs/heads/main"})
+	n, err := uniqueCommitCount(dir, "refs/heads/ahead", []string{"refs/heads/main"})
 	if err != nil {
-		t.Fatalf("uniqueCommitInfo: %v", err)
+		t.Fatalf("uniqueCommitCount: %v", err)
 	}
 	if n != 1 {
 		t.Fatalf("unique commit count = %d, want 1", n)
-	}
-	if newest == 0 {
-		t.Fatal("expected positive unix time for newest unique commit")
 	}
 }
 

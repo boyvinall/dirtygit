@@ -65,7 +65,9 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 				CurrentPath:  d,
 			})
 
+			statusStart := time.Now()
 			rs, include, err := StatusForRepo(config, d)
+			statusDur := time.Since(statusStart)
 			if err != nil {
 				return err
 			}
@@ -78,10 +80,10 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 				ReposChecked: int(n),
 				CurrentPath:  d,
 			})
-			log.Println(d, rs.ScanTime)
+			log.Println(d, statusDur)
 
 			if include {
-				atomic.AddInt64(&totalStatusDuration, rs.ScanTime.Nanoseconds())
+				atomic.AddInt64(&totalStatusDuration, statusDur.Nanoseconds())
 				results.AddResult(d, rs)
 			}
 			return nil
@@ -106,7 +108,6 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 // branch metadata is collected (used by [ScanWithProgress] for progress timing).
 func StatusForRepo(config *Config, dir string) (RepoStatus, bool, error) {
 	ex := NewExcluder(config.GitIgnore.FileGlob, config.GitIgnore.DirGlob)
-	start := time.Now()
 	porcelain, err := GitStatus(dir)
 	if err != nil {
 		return RepoStatus{}, false, err
@@ -124,7 +125,6 @@ func StatusForRepo(config *Config, dir string) (RepoStatus, bool, error) {
 		Status:    st,
 		Porcelain: porcelain,
 		Branches:  branches,
-		ScanTime:  time.Since(start),
 	}
 	include := !st.IsClean() || branches.HasLocalRemoteMismatch()
 	return rs, include, nil

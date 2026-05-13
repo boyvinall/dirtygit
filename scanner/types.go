@@ -5,7 +5,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/go-git/go-git/v5"
 )
@@ -15,14 +14,12 @@ type RepoStatus struct {
 
 	Porcelain PorcelainStatus
 	Branches  BranchStatus
-	ScanTime  time.Duration
 }
 
 type BranchStatus struct {
-	Branch         string
-	Detached       bool
-	Locations      []BranchLocation
-	NewestLocation string
+	Branch    string
+	Detached  bool
+	Locations []BranchLocation
 	// LocalBranches lists refs/heads in name order (from git for-each-ref).
 	LocalBranches []LocalBranchRef
 }
@@ -92,13 +89,11 @@ func (lb LocalBranchRef) IsLocalOnly() bool {
 }
 
 type BranchLocation struct {
-	Name             string
-	Ref              string
-	Exists           bool
-	TipHash          string
-	TipUnix          int64
-	UniqueCount      int
-	NewestUniqueUnix int64
+	Name        string
+	Exists      bool
+	TipHash     string
+	TipUnix     int64
+	UniqueCount int
 	// Incoming/Outgoing compare this ref to the local branch ref only (remote
 	// rows). Incoming is commits reachable from this remote but not local (+N);
 	// Outgoing is commits on local not reachable from this remote (UI: -M).
