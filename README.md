@@ -199,3 +199,4 @@ A few possibilities listed below, none of this is promised or scheduled.
   only as nested `.git` dirs.
 - **Configurable diff** — options such as ignore whitespace or word diff, driven from config, for the Diff pane.
 - **Safer delete housekeeping** — dry-run delete, or move to Trash on macOS instead of only recursive delete.
+

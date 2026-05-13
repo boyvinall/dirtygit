@@ -282,7 +282,7 @@ func statusColumns(totalWidth int) []table.Column {
 	}
 }
 
-// branchRowColumns sizes the branch pane: one row per local branch name.
+// branchRowColumns sizes the branch pane columns for branch summary rows.
 // Account for Padding(0, 1) on every header and cell (see statusColumns).
 func branchRowColumns(totalWidth int) []table.Column {
 	const cols = 4
@@ -306,13 +306,16 @@ func branchRowColumns(totalWidth int) []table.Column {
 	}
 }
 
-// branchRemoteSummary compresses local vs remote tips for the checked-out branch
-// when BranchStatus.Locations is populated (e.g. no local heads listed).
+// branchRemoteSummary compresses local vs remote tips for the checked-out branch.
 func branchRemoteSummary(b scanner.BranchStatus) string {
-	if b.Detached || len(b.Locations) == 0 {
+	if b.Detached {
 		return "-"
 	}
-	return branchRemoteSummaryFromLocations(b.Locations)
+	locs := b.CurrentBranchLocations()
+	if len(locs) == 0 {
+		return "-"
+	}
+	return branchRemoteSummaryFromLocations(locs)
 }
 
 func branchRemoteSummaryFromLocations(locations []scanner.BranchLocation) string {
@@ -375,7 +378,8 @@ func sortLocalBranchesByTipNewestFirst(branches []scanner.LocalBranchRef) {
 	})
 }
 
-// refreshBranchContent rebuilds the branch pane: one table row per local branch name.
+// refreshBranchContent rebuilds the branch pane: one table row per local branch
+// that the pane lists (tip mismatch vs remotes, local-only hide rules, and defaults).
 func (m *model) refreshBranchContent(totalWidth int) {
 	cols := branchRowColumns(totalWidth)
 	m.branchTable.SetColumns(cols)
@@ -415,7 +419,7 @@ func (m *model) refreshBranchContent(totalWidth int) {
 		remote := branchRemoteSummary(branch)
 		tip := "-"
 		when := "-"
-		for _, loc := range branch.Locations {
+		for _, loc := range branch.CurrentBranchLocations() {
 			if loc.Name == "local" && loc.Exists {
 				tip = shortHash(loc.TipHash)
 				when = relativeTime(loc.TipUnix)

@@ -56,9 +56,8 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 
 	for d := range repositories {
 		eg.Go(func() error {
-			// About to run git status for this repo; set CurrentPath so the scan modal
-			// shows which directory is active (and keeps showing it through the rest
-			// of this iteration via the update after GitStatus returns).
+			// About to run StatusForRepo for this path; set CurrentPath so the scan modal
+			// shows which directory is active until this worker finishes and the UI updates.
 			reportProgress(onProgress, ScanProgress{
 				ReposFound:   int(found.Load()),
 				ReposChecked: int(checked.Load()),
@@ -72,9 +71,8 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 				return err
 			}
 			n := checked.Add(1)
-			// Git status finished for this repo; advance ReposChecked and retain
-			// CurrentPath until the next channel receive so the path line does not
-			// flicker to empty while GitBranchStatus and filtering still run.
+			// Per-repo StatusForRepo finished; advance ReposChecked and retain
+			// CurrentPath until the next progress event so the path line does not flicker.
 			reportProgress(onProgress, ScanProgress{
 				ReposFound:   int(found.Load()),
 				ReposChecked: int(n),

@@ -19,10 +19,13 @@ func TestRepoInclusionReasons_uncommitted(t *testing.T) {
 				Path: g, Staging: 'M', Worktree: 'M',
 			}},
 		},
-		Branches: BranchStatus{Branch: "main", Locations: []BranchLocation{
-			{Name: "local", Exists: true, TipHash: "a"},
-			{Name: "origin", Exists: true, TipHash: "a"},
-		}},
+		Branches: BranchStatus{Branch: "main", LocalBranches: []LocalBranchRef{{
+			Name: "main", Current: true,
+			Locations: []BranchLocation{
+				{Name: "local", Exists: true, TipHash: "a"},
+				{Name: "origin", Exists: true, TipHash: "a"},
+			},
+		}}},
 	}
 	lines := RepoInclusionReasons(rs)
 	if len(lines) < 1 || !strings.Contains(lines[0], "Uncommitted") {
@@ -35,10 +38,13 @@ func TestRepoInclusionReasons_branchOnly(t *testing.T) {
 	rs := RepoStatus{
 		Branches: BranchStatus{
 			Branch: "main",
-			Locations: []BranchLocation{
-				{Name: "local", Exists: true, TipHash: "aaa"},
-				{Name: "origin", Exists: true, TipHash: "bbb", Incoming: 0, Outgoing: 1},
-			},
+			LocalBranches: []LocalBranchRef{{
+				Name: "main", Current: true,
+				Locations: []BranchLocation{
+					{Name: "local", Exists: true, TipHash: "aaa"},
+					{Name: "origin", Exists: true, TipHash: "bbb", Incoming: 0, Outgoing: 1},
+				},
+			}},
 		},
 	}
 	lines := RepoInclusionReasons(rs)

@@ -212,6 +212,15 @@ func computeBranchLocations(d, branchName string, remotes []string) ([]BranchLoc
 	return locations, nil
 }
 
+func tipFromLocalBranchLocation(locations []BranchLocation) (hash string, unix int64) {
+	for _, loc := range locations {
+		if loc.Name == "local" && loc.Exists {
+			return loc.TipHash, loc.TipUnix
+		}
+	}
+	return "", 0
+}
+
 func GitBranchStatus(d string) (BranchStatus, error) {
 	branch, detached, err := currentBranch(d)
 	if err != nil {
@@ -240,38 +249,64 @@ func GitBranchStatus(d string) (BranchStatus, error) {
 		if err != nil {
 			return BranchStatus{}, err
 		}
+		tipHash, tipUnix := tipFromLocalBranchLocation(locations)
 		return BranchStatus{
-			Branch:        branch,
-			Detached:      false,
-			Locations:     locations,
-			LocalBranches: nil,
+			Branch:   branch,
+			Detached: false,
+			LocalBranches: []LocalBranchRef{{
+				Name:      branch,
+				TipHash:   tipHash,
+				TipUnix:   tipUnix,
+				Current:   true,
+				Locations: locations,
+			}},
 		}, nil
 	}
 
-	var topLocations []BranchLocation
 	for i := range locals {
 		locs, err := computeBranchLocations(d, locals[i].Name, remotes)
 		if err != nil {
 			return BranchStatus{}, err
 		}
 		locals[i].Locations = locs
-		if locals[i].Current {
-			topLocations = locs
-		}
 	}
 
-	if topLocations == nil {
-		var err2 error
-		topLocations, err2 = computeBranchLocations(d, branch, remotes)
+	var foundCurrent bool
+	for i := range locals {
+		if locals[i].Current {
+			foundCurrent = true
+			break
+		}
+	}
+	if !foundCurrent {
+		locs, err2 := computeBranchLocations(d, branch, remotes)
 		if err2 != nil {
 			return BranchStatus{}, err2
+		}
+		matched := false
+		for i := range locals {
+			if locals[i].Name == branch {
+				locals[i].Locations = locs
+				locals[i].Current = true
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			tipHash, tipUnix := tipFromLocalBranchLocation(locs)
+			locals = append([]LocalBranchRef{{
+				Name:      branch,
+				TipHash:   tipHash,
+				TipUnix:   tipUnix,
+				Current:   true,
+				Locations: locs,
+			}}, locals...)
 		}
 	}
 
 	return BranchStatus{
 		Branch:        branch,
 		Detached:      false,
-		Locations:     topLocations,
 		LocalBranches: locals,
 	}, nil
 }
