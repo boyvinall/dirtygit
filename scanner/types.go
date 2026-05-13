@@ -9,6 +9,10 @@ import (
 	"github.com/go-git/go-git/v5"
 )
 
+// RepoStatus aggregates one repository's working tree and branch metadata:
+// parsed git status --porcelain (Porcelain), HEAD and local-branch layout with
+// remote tips (Branches), and an embedded [git.Status] rebuilt from Porcelain
+// for code that expects go-git's map form.
 type RepoStatus struct {
 	git.Status
 
@@ -16,10 +20,14 @@ type RepoStatus struct {
 	Branches  BranchStatus
 }
 
+// BranchStatus is HEAD identity plus an ordered list of local branch refs and
+// per-branch local vs same-named remote comparison rows.
 type BranchStatus struct {
-	Branch    string
-	Detached  bool
-	Locations []BranchLocation
+	// Branch is the checked-out branch short name, or when Detached the short
+	// HEAD object name (see git rev-parse --short HEAD).
+	Branch string
+	// Detached is true when HEAD is not on a branch (detached HEAD).
+	Detached bool
 	// LocalBranches lists refs/heads in name order (from git for-each-ref).
 	LocalBranches []LocalBranchRef
 }
@@ -28,10 +36,16 @@ type BranchStatus struct {
 // Locations holds local vs same-named remote refs (refs/remotes/<remote>/<name>);
 // it is empty when detached or before GitBranchStatus fills it.
 type LocalBranchRef struct {
-	Name      string
-	TipHash   string
-	TipUnix   int64
-	Current   bool
+	// Name is the short branch name (the refs/heads/* ref without the prefix).
+	Name string
+	// TipHash is the full object name of the local ref tip; TipUnix is the tip
+	// commit's committer date in Unix seconds (from branch listing / git show).
+	TipHash string
+	TipUnix int64
+	// Current is true when this row is the checked-out branch.
+	Current bool
+	// Locations compares this local branch to same-named refs on each configured
+	// remote; see [BranchLocation]. Empty when detached or before branch scan fills it.
 	Locations []BranchLocation
 }
 
@@ -88,11 +102,29 @@ func (lb LocalBranchRef) IsLocalOnly() bool {
 	return true
 }
 
+// BranchLocation is one side of a local branch compared to same-named remotes:
+// either the local ref (Name "local") or a configured remote's
+// refs/remotes/<Name>/<branch>. Populated by branch status scanning; stored in
+// [LocalBranchRef.Locations]. The UI and helpers use it for tip hashes,
+// ahead/behind counts (Incoming/Outgoing vs local), and mismatch detection.
 type BranchLocation struct {
-	Name        string
-	Exists      bool
-	TipHash     string
-	TipUnix     int64
+	// Either "local" or the name of a configured remote.
+	Name string
+
+	// Exists is true when this location's ref (refs/heads/<branch> for "local",
+	// refs/remotes/<remote>/<branch> otherwise) exists and resolves to a commit;
+	// false when the ref is missing.
+	Exists bool
+
+	// TipHash is the full hex object name of this ref's tip commit when Exists;
+	// empty when not Exists.
+	TipHash string
+	// TipUnix is the tip commit's committer date in Unix seconds (from git show);
+	// zero when not Exists.
+	TipUnix int64
+	// UniqueCount is commits reachable from this ref but not from any other
+	// Exists location for the same branch (local plus each remote in the scan).
+	// Zero when not Exists.
 	UniqueCount int
 	// Incoming/Outgoing compare this ref to the local branch ref only (remote
 	// rows). Incoming is commits reachable from this remote but not local (+N);
@@ -104,6 +136,21 @@ type BranchLocation struct {
 	HistoriesUnrelated bool
 }
 
+// CurrentBranchLocations returns local vs same-named remote rows for the
+// checked-out branch (the [LocalBranchRef] with Current: true). Returns nil when
+// detached or when no current row exists.
+func (b *BranchStatus) CurrentBranchLocations() []BranchLocation {
+	if b == nil || b.Detached {
+		return nil
+	}
+	for i := range b.LocalBranches {
+		if b.LocalBranches[i].Current {
+			return b.LocalBranches[i].Locations
+		}
+	}
+	return nil
+}
+
 // HasLocalRemoteMismatch reports whether the current local branch differs from
 // any tracked remote location for the same branch name. A clean repo that is
 // only behind the remote (incoming commits, nothing to push) is not a mismatch.
@@ -111,11 +158,15 @@ func (b *BranchStatus) HasLocalRemoteMismatch() bool {
 	if b.Detached {
 		return false
 	}
+	locs := b.CurrentBranchLocations()
+	if len(locs) == 0 {
+		return false
+	}
 
 	var local *BranchLocation
-	for i := range b.Locations {
-		if b.Locations[i].Name == "local" {
-			local = &b.Locations[i]
+	for i := range locs {
+		if locs[i].Name == "local" {
+			local = &locs[i]
 			break
 		}
 	}
@@ -124,8 +175,8 @@ func (b *BranchStatus) HasLocalRemoteMismatch() bool {
 	}
 
 	hasRemote := false
-	for i := range b.Locations {
-		loc := b.Locations[i]
+	for i := range locs {
+		loc := locs[i]
 		if loc.Name == "local" {
 			continue
 		}
@@ -146,6 +197,7 @@ func (b *BranchStatus) HasLocalRemoteMismatch() bool {
 
 // FilterLocalOnlyForConfig filters out local-only branches that
 // [Config.ShouldHideLocalOnlyBranch] matches unless [Config.AlwaysListBranch] applies.
+// The checked-out branch is never removed so HEAD remote comparison stays available.
 func (b *BranchStatus) FilterLocalOnlyForConfig(c *Config) {
 	refs := b.LocalBranches
 	if c == nil || len(refs) == 0 {
@@ -153,6 +205,10 @@ func (b *BranchStatus) FilterLocalOnlyForConfig(c *Config) {
 	}
 	out := make([]LocalBranchRef, 0)
 	for _, lb := range refs {
+		if lb.Current {
+			out = append(out, lb)
+			continue
+		}
 		if c.ShouldHideLocalOnlyBranch(lb) && !c.AlwaysListBranch(lb.Name) {
 			continue
 		}
@@ -167,10 +223,14 @@ func (b *BranchStatus) LocalRemoteMismatchReasons() []string {
 	if b.Detached {
 		return nil
 	}
+	locs := b.CurrentBranchLocations()
+	if len(locs) == 0 {
+		return nil
+	}
 	var local *BranchLocation
-	for i := range b.Locations {
-		if b.Locations[i].Name == "local" {
-			local = &b.Locations[i]
+	for i := range locs {
+		if locs[i].Name == "local" {
+			local = &locs[i]
 			break
 		}
 	}
@@ -182,8 +242,8 @@ func (b *BranchStatus) LocalRemoteMismatchReasons() []string {
 		branchName = "current branch"
 	}
 	hasRemote := false
-	for i := range b.Locations {
-		loc := b.Locations[i]
+	for i := range locs {
+		loc := locs[i]
 		if loc.Name == "local" {
 			continue
 		}
@@ -216,13 +276,18 @@ func (b *BranchStatus) LocalRemoteMismatchReasons() []string {
 	return nil
 }
 
+// PorcelainEntry is one parsed line of git status --porcelain (short format).
 type PorcelainEntry struct {
-	Staging      git.StatusCode
-	Worktree     git.StatusCode
-	Path         string
+	// Staging and Worktree are the two status columns (index vs working tree).
+	Staging  git.StatusCode
+	Worktree git.StatusCode
+	// Path is the file path, or the new path for a rename.
+	Path string
+	// OriginalPath is the old path for a rename; empty when not a rename.
 	OriginalPath string
 }
 
+// PorcelainStatus is the full porcelain parse for one repo (entry order matches git output).
 type PorcelainStatus struct {
 	Entries []PorcelainEntry
 }
@@ -238,12 +303,16 @@ func (p PorcelainStatus) ToGitStatus() git.Status {
 	return st
 }
 
-// ScanProgress reports coarse scan activity for UIs (discovery vs git status).
+// ScanProgress reports coarse scan activity for UIs (discovery vs per-repo work).
 // ReposFound may increase while ReposChecked catches up; both match the final total when complete.
 type ScanProgress struct {
-	ReposFound   int
+	// ReposFound is how many git repositories have been discovered so far.
+	ReposFound int
+	// ReposChecked is how many of those have finished StatusForRepo (porcelain,
+	// branch metadata, and config filtering), not git status alone.
 	ReposChecked int
-	CurrentPath  string
+	// CurrentPath is the path currently being processed (for status display).
+	CurrentPath string
 }
 
 type Config struct {
