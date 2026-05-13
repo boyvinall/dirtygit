@@ -78,59 +78,77 @@ func TestBranchStatusHasLocalRemoteMismatch(t *testing.T) {
 		{
 			name: "no remotes",
 			in: BranchStatus{
-				Locations: []BranchLocation{
-					{Name: "local", Exists: true, TipHash: "abc"},
-				},
+				LocalBranches: []LocalBranchRef{{
+					Current: true,
+					Locations: []BranchLocation{
+						{Name: "local", Exists: true, TipHash: "abc"},
+					},
+				}},
 			},
 			want: false,
 		},
 		{
 			name: "matching local and remote",
 			in: BranchStatus{
-				Locations: []BranchLocation{
-					{Name: "local", Exists: true, TipHash: "abc"},
-					{Name: "origin", Exists: true, TipHash: "abc"},
-				},
+				LocalBranches: []LocalBranchRef{{
+					Current: true,
+					Locations: []BranchLocation{
+						{Name: "local", Exists: true, TipHash: "abc"},
+						{Name: "origin", Exists: true, TipHash: "abc"},
+					},
+				}},
 			},
 			want: false,
 		},
 		{
 			name: "local ahead of remote",
 			in: BranchStatus{
-				Locations: []BranchLocation{
-					{Name: "local", Exists: true, TipHash: "aaa"},
-					{Name: "origin", Exists: true, TipHash: "bbb", Incoming: 0, Outgoing: 1},
-				},
+				LocalBranches: []LocalBranchRef{{
+					Current: true,
+					Locations: []BranchLocation{
+						{Name: "local", Exists: true, TipHash: "aaa"},
+						{Name: "origin", Exists: true, TipHash: "bbb", Incoming: 0, Outgoing: 1},
+					},
+				}},
 			},
 			want: true,
 		},
 		{
 			name: "remote ahead of local (behind)",
 			in: BranchStatus{
-				Locations: []BranchLocation{
-					{Name: "local", Exists: true, TipHash: "aaa"},
-					{Name: "origin", Exists: true, TipHash: "bbb", Incoming: 2, Outgoing: 0},
-				},
+				LocalBranches: []LocalBranchRef{{
+					Current: true,
+					Locations: []BranchLocation{
+						{Name: "local", Exists: true, TipHash: "aaa"},
+						{Name: "origin", Exists: true, TipHash: "bbb", Incoming: 2, Outgoing: 0},
+					},
+				}},
 			},
 			want: false,
 		},
 		{
 			name: "remote ahead but unrelated histories",
 			in: BranchStatus{
-				Locations: []BranchLocation{
-					{Name: "local", Exists: true, TipHash: "aaa"},
-					{Name: "origin", Exists: true, TipHash: "bbb", HistoriesUnrelated: true, Incoming: 1, Outgoing: 0},
-				},
+				LocalBranches: []LocalBranchRef{{
+					Current: true,
+					Locations: []BranchLocation{
+						{Name: "local", Exists: true, TipHash: "aaa"},
+						{Name: "origin", Exists: true, TipHash: "bbb", HistoriesUnrelated: true, Incoming: 1, Outgoing: 0},
+					},
+				}},
 			},
 			want: true,
 		},
 		{
 			name: "remote branch missing",
 			in: BranchStatus{
-				Locations: []BranchLocation{
-					{Name: "local", Exists: true, TipHash: "aaa"},
-					{Name: "origin", Exists: false},
-				},
+				LocalBranches: []LocalBranchRef{{
+					Current: true,
+					Locations: []BranchLocation{
+						{Name: "local", Exists: true, TipHash: "aaa"},
+						{Name: "origin", Exists: false},
+					},
+				}},
 			},
 			want: true,
 		},
@@ -138,10 +156,13 @@ func TestBranchStatusHasLocalRemoteMismatch(t *testing.T) {
 			name: "tips match but local has unique-only commits",
 			in: BranchStatus{
 				Branch: "main",
-				Locations: []BranchLocation{
-					{Name: "local", Exists: true, TipHash: "abc", UniqueCount: 2},
-					{Name: "origin", Exists: true, TipHash: "abc"},
-				},
+				LocalBranches: []LocalBranchRef{{
+					Current: true,
+					Locations: []BranchLocation{
+						{Name: "local", Exists: true, TipHash: "abc", UniqueCount: 2},
+						{Name: "origin", Exists: true, TipHash: "abc"},
+					},
+				}},
 			},
 			want: true,
 		},

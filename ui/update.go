@@ -299,7 +299,7 @@ func (m *model) cycleFocus(forward bool) {
 	}
 	if !found {
 		if cur == paneDiff {
-			// Mouse-focused Diff: Tab continues the main layout order (Branches → Diff → Log).
+			// Mouse-focused Diff is outside tabFocusCycle; Tab goes to Log, Shift+Tab to Branches.
 			if forward {
 				i = 3 // log
 			} else {
