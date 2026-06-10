@@ -49,6 +49,40 @@ type LocalBranchRef struct {
 	Locations []BranchLocation
 }
 
+// BranchLocation is one side of a local branch compared to same-named remotes:
+// either the local ref (Name "local") or a configured remote's
+// refs/remotes/<Name>/<branch>. Populated by branch status scanning; stored in
+// [LocalBranchRef.Locations]. The UI and helpers use it for tip hashes,
+// ahead/behind counts (Incoming/Outgoing vs local), and mismatch detection.
+type BranchLocation struct {
+	// Either "local" or the name of a configured remote.
+	Name string
+
+	// Exists is true when this location's ref (refs/heads/<branch> for "local",
+	// refs/remotes/<remote>/<branch> otherwise) exists and resolves to a commit;
+	// false when the ref is missing.
+	Exists bool
+
+	// TipHash is the full hex object name of this ref's tip commit when Exists;
+	// empty when not Exists.
+	TipHash string
+	// TipUnix is the tip commit's committer date in Unix seconds (from git show);
+	// zero when not Exists.
+	TipUnix int64
+	// UniqueCount is commits reachable from this ref but not from any other
+	// Exists location for the same branch (local plus each remote in the scan).
+	// Zero when not Exists.
+	UniqueCount int
+	// Incoming/Outgoing compare this ref to the local branch ref only (remote
+	// rows). Incoming is commits reachable from this remote but not local (+N);
+	// Outgoing is commits on local not reachable from this remote (UI: -M).
+	Incoming int
+	Outgoing int
+	// HistoriesUnrelated means git found no merge base between local and this
+	// remote tip; the UI shows "differs" instead of numeric deltas.
+	HistoriesUnrelated bool
+}
+
 // HasTipMismatchAcrossRemotes reports whether the branch should appear in the
 // branch pane: true when Locations is empty (e.g. detached), there are no
 // configured remotes, any same-named remote ref is missing, or any remote tip
@@ -102,40 +136,6 @@ func (lb LocalBranchRef) IsLocalOnly() bool {
 	return true
 }
 
-// BranchLocation is one side of a local branch compared to same-named remotes:
-// either the local ref (Name "local") or a configured remote's
-// refs/remotes/<Name>/<branch>. Populated by branch status scanning; stored in
-// [LocalBranchRef.Locations]. The UI and helpers use it for tip hashes,
-// ahead/behind counts (Incoming/Outgoing vs local), and mismatch detection.
-type BranchLocation struct {
-	// Either "local" or the name of a configured remote.
-	Name string
-
-	// Exists is true when this location's ref (refs/heads/<branch> for "local",
-	// refs/remotes/<remote>/<branch> otherwise) exists and resolves to a commit;
-	// false when the ref is missing.
-	Exists bool
-
-	// TipHash is the full hex object name of this ref's tip commit when Exists;
-	// empty when not Exists.
-	TipHash string
-	// TipUnix is the tip commit's committer date in Unix seconds (from git show);
-	// zero when not Exists.
-	TipUnix int64
-	// UniqueCount is commits reachable from this ref but not from any other
-	// Exists location for the same branch (local plus each remote in the scan).
-	// Zero when not Exists.
-	UniqueCount int
-	// Incoming/Outgoing compare this ref to the local branch ref only (remote
-	// rows). Incoming is commits reachable from this remote but not local (+N);
-	// Outgoing is commits on local not reachable from this remote (UI: -M).
-	Incoming int
-	Outgoing int
-	// HistoriesUnrelated means git found no merge base between local and this
-	// remote tip; the UI shows "differs" instead of numeric deltas.
-	HistoriesUnrelated bool
-}
-
 // CurrentBranchLocations returns local vs same-named remote rows for the
 // checked-out branch (the [LocalBranchRef] with Current: true). Returns nil when
 // detached or when no current row exists.
@@ -158,7 +158,22 @@ func (b *BranchStatus) HasLocalRemoteMismatch() bool {
 	if b.Detached {
 		return false
 	}
-	locs := b.CurrentBranchLocations()
+
+	return len(b.GetMismatchedBranches()) > 0
+}
+
+func (b *BranchStatus) GetMismatchedBranches() []LocalBranchRef {
+	mismatchedBranches := []LocalBranchRef{}
+	for i := range b.LocalBranches {
+		if b.LocalBranches[i].IsMisMatchAcrossRemotes() {
+			mismatchedBranches = append(mismatchedBranches, b.LocalBranches[i])
+		}
+	}
+	return mismatchedBranches
+}
+
+func (lb *LocalBranchRef) IsMisMatchAcrossRemotes() bool {
+	locs := lb.Locations
 	if len(locs) == 0 {
 		return false
 	}
@@ -192,7 +207,10 @@ func (b *BranchStatus) HasLocalRemoteMismatch() bool {
 		}
 	}
 
-	return hasRemote && local.UniqueCount > 0
+	if hasRemote && local.UniqueCount > 0 {
+		return true
+	}
+	return false
 }
 
 // FilterLocalOnlyForConfig filters out local-only branches that
@@ -205,10 +223,10 @@ func (b *BranchStatus) FilterLocalOnlyForConfig(c *Config) {
 	}
 	out := make([]LocalBranchRef, 0)
 	for _, lb := range refs {
-		if lb.Current {
-			out = append(out, lb)
-			continue
-		}
+		// if lb.Current {
+		// 	out = append(out, lb)
+		// 	continue
+		// }
 		if c.ShouldHideLocalOnlyBranch(lb) && !c.AlwaysListBranch(lb.Name) {
 			continue
 		}

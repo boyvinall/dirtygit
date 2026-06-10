@@ -35,6 +35,10 @@ func main() {
 		CommandNotFound: func(ctx context.Context, cmd *cli.Command, name string) {
 			fmt.Printf("ERROR: Unknown command '%s'\n", name)
 		},
+		Commands: []*cli.Command{
+			reportCommand(),
+			validateReportCommand(),
+		},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "config",
