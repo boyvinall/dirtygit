@@ -29,9 +29,10 @@ type RepoStatus struct {
 	Branches []LocalBranchRef
 
 	// FilteredBranches is the subset of Branches that pass config filtering
-	// (e.g. hide local-only branches matching config patterns). It is what the
-	// UI branch pane shows and is used for mismatch detection and unpushed
-	// change status. It is always a subset of Branches and has the same order.
+	// (e.g. hide local-only branches matching config patterns). It drives the
+	// UI branch pane display and report inclusion decisions. HasUnpushedChanges
+	// iterates Branches directly with inline config filtering, so it does not
+	// use FilteredBranches. It is always a subset of Branches with the same order.
 	FilteredBranches []LocalBranchRef
 }
 
@@ -52,11 +53,11 @@ type LocalBranchRef struct {
 	Locations []BranchLocation
 }
 
-func (lbr *LocalBranchRef) GetDisplayName() string {
-	if lbr.Current {
-		return "*" + lbr.Name
+func (lb *LocalBranchRef) DisplayName() string {
+	if lb.Current {
+		return "*" + lb.Name
 	}
-	return lbr.Name
+	return lb.Name
 }
 
 // BranchLocation is one side of a local branch compared to same-named remotes:
@@ -117,7 +118,7 @@ func (lb LocalBranchRef) IsLocalOnly() bool {
 // checked-out branch (the [LocalBranchRef] with Current: true). Returns nil when
 // detached or when no current row exists.
 func (rs *RepoStatus) CurrentBranchLocations() []BranchLocation {
-	if rs == nil || rs.Detached {
+	if rs == nil {
 		return nil
 	}
 	for i := range rs.Branches {
@@ -186,7 +187,7 @@ func (lb *LocalBranchRef) HasUnpushedChanges() bool {
 // [Config.ShouldHideLocalOnlyBranch] matches.
 // The checked-out branch is never removed so HEAD remote comparison stays available.
 func (rs *RepoStatus) Filter(c *Config) []LocalBranchRef {
-	out := make([]LocalBranchRef, 0)
+	out := make([]LocalBranchRef, 0, len(rs.Branches))
 	for _, lb := range rs.Branches {
 		if lb.Current {
 			out = append(out, lb)
@@ -207,14 +208,12 @@ func (rs *RepoStatus) Filter(c *Config) []LocalBranchRef {
 	return out
 }
 
-// LocalRemoteMismatchReasons returns a short line explaining why
-func (rs *RepoStatus) LocalRemoteMismatchReasons() []string {
-	if rs.Detached {
-		return nil
-	}
+// LocalRemoteMismatchReason returns a human-readable explanation of why the
+// current branch diverges from its remotes, and whether a mismatch was found.
+func (rs *RepoStatus) LocalRemoteMismatchReason() (reason string, ok bool) {
 	locs := rs.CurrentBranchLocations()
 	if len(locs) == 0 {
-		return nil
+		return "", false
 	}
 	var local *BranchLocation
 	for i := range locs {
@@ -224,7 +223,7 @@ func (rs *RepoStatus) LocalRemoteMismatchReasons() []string {
 		}
 	}
 	if local == nil || !local.Exists {
-		return nil
+		return "", false
 	}
 	branchName := rs.Branch
 	if branchName == "" {
@@ -238,31 +237,31 @@ func (rs *RepoStatus) LocalRemoteMismatchReasons() []string {
 		}
 		hasRemote = true
 		if !loc.Exists {
-			return []string{fmt.Sprintf("On remote %q, there is no same-named branch to compare with your local %q (refs/remotes/…/… missing).", loc.Name, branchName)}
+			return fmt.Sprintf("On remote %q, there is no same-named branch to compare with your local %q (refs/remotes/…/… missing).", loc.Name, branchName), true
 		}
 		if loc.TipHash != local.TipHash {
 			if !loc.HistoriesUnrelated && loc.Incoming > 0 && loc.Outgoing == 0 {
 				continue
 			}
 			if loc.HistoriesUnrelated {
-				return []string{fmt.Sprintf("On remote %q, %q has unrelated history to your local tip (no merge base).", loc.Name, branchName)}
+				return fmt.Sprintf("On remote %q, %q has unrelated history to your local tip (no merge base).", loc.Name, branchName), true
 			}
 			if loc.Incoming > 0 && loc.Outgoing > 0 {
-				return []string{fmt.Sprintf("On remote %q, %q diverged from the local tip (incoming +%d, outgoing %d).", loc.Name, branchName, loc.Incoming, loc.Outgoing)}
+				return fmt.Sprintf("On remote %q, %q diverged from the local tip (incoming +%d, outgoing %d).", loc.Name, branchName, loc.Incoming, loc.Outgoing), true
 			}
 			if loc.Outgoing > 0 {
-				return []string{fmt.Sprintf("On remote %q, your local %q is ahead: %d commit(s) not on that remote (tips differ or unpushed).", loc.Name, branchName, loc.Outgoing)}
+				return fmt.Sprintf("On remote %q, your local %q is ahead: %d commit(s) not on that remote (tips differ or unpushed).", loc.Name, branchName, loc.Outgoing), true
 			}
 			if loc.Incoming > 0 {
-				return []string{fmt.Sprintf("On remote %q, the same-named ref tip differs from your local %q (and it is not the \"only behind the remote\" case).", loc.Name, branchName)}
+				return fmt.Sprintf("On remote %q, the same-named ref tip differs from your local %q (and it is not the \"only behind the remote\" case).", loc.Name, branchName), true
 			}
-			return []string{fmt.Sprintf("On remote %q, the same-named ref tip differs from your local branch %q (not the \"only behind the remote\" case).", loc.Name, branchName)}
+			return fmt.Sprintf("On remote %q, the same-named ref tip differs from your local branch %q (not the \"only behind the remote\" case).", loc.Name, branchName), true
 		}
 	}
 	if hasRemote && local.UniqueCount > 0 {
-		return []string{fmt.Sprintf("Branch %q: %d commit(s) on local are not on any of the other refs this scan compared (e.g. same-named remotes) — see the Branches pane for detail.", branchName, local.UniqueCount)}
+		return fmt.Sprintf("Branch %q: %d commit(s) on local are not on any of the other refs this scan compared (e.g. same-named remotes) — see the Branches pane for detail.", branchName, local.UniqueCount), true
 	}
-	return nil
+	return "", false
 }
 
 // PorcelainEntry is one parsed line of git status --porcelain (short format).

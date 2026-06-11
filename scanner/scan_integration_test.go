@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"sync"
@@ -26,7 +27,7 @@ func TestScanFindsDirtyRepos(t *testing.T) {
 	cfg := &Config{}
 	cfg.ScanDirs.Include = []string{root}
 
-	mgs, err := Scan(cfg)
+	mgs, err := Scan(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -46,7 +47,7 @@ func TestScanEmptyTree(t *testing.T) {
 	cfg := &Config{}
 	cfg.ScanDirs.Include = []string{root}
 
-	mgs, err := Scan(cfg)
+	mgs, err := Scan(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -82,7 +83,7 @@ func TestScanWithProgressReportsProgress(t *testing.T) {
 		}
 	}
 
-	mgs, err := ScanWithProgress(cfg, callback)
+	mgs, err := ScanWithProgress(context.Background(), cfg, callback)
 	if err != nil {
 		t.Fatalf("ScanWithProgress: %v", err)
 	}

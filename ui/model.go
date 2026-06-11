@@ -137,8 +137,8 @@ type model struct {
 	layoutBranchBody        int
 	layoutLogBody           int
 
-	// layoutBranchesOuter is the framed Diff (right) column outer width in the middle row (0 = default pct).
-	layoutBranchesOuter int
+	// layoutDiffColumnOuter is the framed Diff (right) column outer width in the middle row (0 = default pct).
+	layoutDiffColumnOuter int
 
 	resizeDrag resizeSplit
 }

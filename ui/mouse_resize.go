@@ -201,7 +201,7 @@ func (m *model) applyResizeDrag(x, y int) {
 		if !ok {
 			return
 		}
-		m.layoutBranchesOuter = rightOuter
+		m.layoutDiffColumnOuter = rightOuter
 
 	default:
 		return

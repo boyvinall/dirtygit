@@ -9,11 +9,9 @@ import (
 )
 
 func TestParsePorcelainStatus(t *testing.T) {
-	input := strings.Join([]string{
-		" M scanner/scan.go",
-		"R  old/name.go -> new/name.go",
-		"?? scanner/scan_test.go",
-	}, "\n")
+	// NUL-delimited format (git status --porcelain -z):
+	// renames: first token is "R  new-path", second token is "old-path"
+	input := " M scanner/scan.go\x00R  new/name.go\x00old/name.go\x00?? scanner/scan_test.go\x00"
 
 	st, err := ParsePorcelainStatus(strings.NewReader(input))
 	if err != nil {
@@ -38,7 +36,7 @@ func TestParsePorcelainStatus(t *testing.T) {
 }
 
 func TestParsePorcelainStatusRejectsMalformedLine(t *testing.T) {
-	_, err := ParsePorcelainStatus(strings.NewReader("bad"))
+	_, err := ParsePorcelainStatus(strings.NewReader("bad\x00"))
 	if err == nil {
 		t.Fatal("ParsePorcelainStatus() expected error for malformed line")
 	}
