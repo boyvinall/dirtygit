@@ -10,7 +10,8 @@ import (
 )
 
 // bubblesTableSlice reads the table's current [start,end) row window used for
-// rendering. Field names match github.com/charmbracelet/bubbles/table v1.0.0.
+// rendering via reflection on unexported fields. Field names are pinned to
+// bubbles v1.0.0; TestBubblesTableInternalFields will fail if they are renamed.
 func bubblesTableSlice(t table.Model) (start, end int) {
 	v := reflect.ValueOf(t)
 	sf := v.FieldByName("start")
@@ -21,7 +22,8 @@ func bubblesTableSlice(t table.Model) (start, end int) {
 	return int(sf.Int()), int(ef.Int())
 }
 
-// bubblesTableViewportYOffset reads the embedded viewport's vertical scroll.
+// bubblesTableViewportYOffset reads the embedded viewport's vertical scroll
+// via reflection on unexported fields (same version caveat as bubblesTableSlice).
 func bubblesTableViewportYOffset(t table.Model) int {
 	vp := reflect.ValueOf(t).FieldByName("viewport")
 	if !vp.IsValid() {

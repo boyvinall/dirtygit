@@ -61,7 +61,6 @@ func (m *model) beginScan() tea.Cmd {
 		return nil
 	}
 	m.err = nil
-	m.whyRepoOpen = false
 	m.deleteRepoConfirmOpen = false
 	m.deleteStatusFileConfirmOpen = false
 	m.deleteStatusFilePendingRel = ""

@@ -9,9 +9,9 @@ import (
 )
 
 // haveMergeBase reports whether git finds a common ancestor for the two commits.
-func haveMergeBase(d, commitA, commitB string) (bool, error) {
+func haveMergeBase(dir, commitA, commitB string) (bool, error) {
 	cmd := exec.Command("git", "merge-base", commitA, commitB)
-	cmd.Dir = d
+	cmd.Dir = dir
 	err := cmd.Run()
 	if err == nil {
 		return true, nil
@@ -24,8 +24,8 @@ func haveMergeBase(d, commitA, commitB string) (bool, error) {
 
 // listLocalBranches returns all refs/heads sorted by name. When detached is false,
 // currentName is the checked-out branch name and that row has Current set.
-func listLocalBranches(d, currentName string, detached bool) ([]LocalBranchRef, error) {
-	out, err := runGit(d, "for-each-ref", "refs/heads", "--sort=refname",
+func listLocalBranches(dir, currentName string, detached bool) ([]LocalBranchRef, error) {
+	out, err := runGit(dir, "for-each-ref", "refs/heads", "--sort=refname",
 		"--format=%(refname:short)\t%(objectname)\t%(committerdate:unix)")
 	if err != nil {
 		return nil, err
@@ -60,30 +60,30 @@ func listLocalBranches(d, currentName string, detached bool) ([]LocalBranchRef, 
 	return refs, nil
 }
 
-func runGit(d string, args ...string) (string, error) {
+func runGit(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
-	cmd.Dir = d
+	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("%s: %w", d, err)
+		return "", fmt.Errorf("%s: %w", dir, err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
 
-func currentBranch(d string) (name string, detached bool, err error) {
-	name, err = runGit(d, "symbolic-ref", "--quiet", "--short", "HEAD")
+func currentBranch(dir string) (name string, detached bool, err error) {
+	name, err = runGit(dir, "symbolic-ref", "--quiet", "--short", "HEAD")
 	if err == nil {
 		return name, false, nil
 	}
-	head, headErr := runGit(d, "rev-parse", "--short", "HEAD")
+	head, headErr := runGit(dir, "rev-parse", "--short", "HEAD")
 	if headErr != nil {
 		return "", false, headErr
 	}
 	return head, true, nil
 }
 
-func listRemotes(d string) ([]string, error) {
-	out, err := runGit(d, "remote")
+func listRemotes(dir string) ([]string, error) {
+	out, err := runGit(dir, "remote")
 	if err != nil {
 		return nil, err
 	}
@@ -95,8 +95,8 @@ func listRemotes(d string) ([]string, error) {
 	return remotes, nil
 }
 
-func refTip(d, ref string) (hash string, unix int64, exists bool, err error) {
-	out, err := runGit(d, "show", "-s", "--format=%H %ct", ref)
+func refTip(dir, ref string) (hash string, unix int64, exists bool, err error) {
+	out, err := runGit(dir, "show", "-s", "--format=%H %ct", ref)
 	if err != nil {
 		return "", 0, false, nil
 	}
@@ -120,13 +120,13 @@ func branchLocationRef(locationName, branchName string) string {
 	return "refs/remotes/" + locationName + "/" + branchName
 }
 
-func uniqueCommitCount(d, ref string, otherRefs []string) (count int, err error) {
+func uniqueCommitCount(dir, ref string, otherRefs []string) (count int, err error) {
 	if len(otherRefs) == 0 {
 		return 0, nil
 	}
 	args := []string{"rev-list", "--count", ref, "--not"}
 	args = append(args, otherRefs...)
-	out, err := runGit(d, args...)
+	out, err := runGit(dir, args...)
 	if err != nil {
 		return 0, err
 	}
@@ -139,7 +139,7 @@ func uniqueCommitCount(d, ref string, otherRefs []string) (count int, err error)
 
 // computeBranchLocations compares refs/heads/<branchName> to refs/remotes/<r>/<branchName>
 // for each configured remote and fills UniqueCount per location.
-func computeBranchLocations(d, branchName string, remotes []string) ([]BranchLocation, error) {
+func computeBranchLocations(dir, branchName string, remotes []string) ([]BranchLocation, error) {
 	locations := make([]BranchLocation, 0, 1+len(remotes))
 	locations = append(locations, BranchLocation{Name: "local"})
 	for _, remote := range remotes {
@@ -148,7 +148,7 @@ func computeBranchLocations(d, branchName string, remotes []string) ([]BranchLoc
 
 	for i := range locations {
 		ref := branchLocationRef(locations[i].Name, branchName)
-		hash, unix, exists, err := refTip(d, ref)
+		hash, unix, exists, err := refTip(dir, ref)
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +174,7 @@ func computeBranchLocations(d, branchName string, remotes []string) ([]BranchLoc
 				others = append(others, otherRef)
 			}
 		}
-		count, err := uniqueCommitCount(d, ref, others)
+		count, err := uniqueCommitCount(dir, ref, others)
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +187,7 @@ func computeBranchLocations(d, branchName string, remotes []string) ([]BranchLoc
 			if !locations[i].Exists {
 				continue
 			}
-			related, err := haveMergeBase(d, locations[0].TipHash, locations[i].TipHash)
+			related, err := haveMergeBase(dir, locations[0].TipHash, locations[i].TipHash)
 			if err != nil {
 				return nil, err
 			}
@@ -196,11 +196,11 @@ func computeBranchLocations(d, branchName string, remotes []string) ([]BranchLoc
 				continue
 			}
 			remoteRef := branchLocationRef(locations[i].Name, branchName)
-			incoming, err := uniqueCommitCount(d, remoteRef, []string{localRef})
+			incoming, err := uniqueCommitCount(dir, remoteRef, []string{localRef})
 			if err != nil {
 				return nil, err
 			}
-			outgoing, err := uniqueCommitCount(d, localRef, []string{remoteRef})
+			outgoing, err := uniqueCommitCount(dir, localRef, []string{remoteRef})
 			if err != nil {
 				return nil, err
 			}
@@ -212,66 +212,97 @@ func computeBranchLocations(d, branchName string, remotes []string) ([]BranchLoc
 	return locations, nil
 }
 
-func GitBranchStatus(d string) (BranchStatus, error) {
-	branch, detached, err := currentBranch(d)
+func tipFromLocalBranchLocation(locations []BranchLocation) (hash string, unix int64) {
+	for _, loc := range locations {
+		if loc.Name == "local" && loc.Exists {
+			return loc.TipHash, loc.TipUnix
+		}
+	}
+	return "", 0
+}
+
+func GitBranchStatus(dir string) (branch string, detached bool, locals []LocalBranchRef, err error) {
+	branch, detached, err = currentBranch(dir)
 	if err != nil {
-		return BranchStatus{}, err
+		return
 	}
 	if detached {
-		locals, listErr := listLocalBranches(d, branch, true)
-		if listErr != nil {
-			return BranchStatus{}, listErr
-		}
-		return BranchStatus{Branch: branch, Detached: true, LocalBranches: locals}, nil
+		locals, err = listLocalBranches(dir, branch, true)
+		return
 	}
 
-	remotes, err := listRemotes(d)
+	var remotes []string
+	remotes, err = listRemotes(dir)
 	if err != nil {
-		return BranchStatus{}, err
+		return
 	}
 
-	locals, err := listLocalBranches(d, branch, false)
+	locals, err = listLocalBranches(dir, branch, false)
 	if err != nil {
-		return BranchStatus{}, err
+		return
 	}
 
 	if len(locals) == 0 {
-		locations, err := computeBranchLocations(d, branch, remotes)
+		var locations []BranchLocation
+		locations, err = computeBranchLocations(dir, branch, remotes)
 		if err != nil {
-			return BranchStatus{}, err
+			return
 		}
-		return BranchStatus{
-			Branch:        branch,
-			Detached:      false,
-			Locations:     locations,
-			LocalBranches: nil,
-		}, nil
+		tipHash, tipUnix := tipFromLocalBranchLocation(locations)
+		locals = []LocalBranchRef{{
+			Name:      branch,
+			TipHash:   tipHash,
+			TipUnix:   tipUnix,
+			Current:   true,
+			Locations: locations,
+		}}
+		return
 	}
 
-	var topLocations []BranchLocation
 	for i := range locals {
-		locs, err := computeBranchLocations(d, locals[i].Name, remotes)
+		var locs []BranchLocation
+		locs, err = computeBranchLocations(dir, locals[i].Name, remotes)
 		if err != nil {
-			return BranchStatus{}, err
+			return
 		}
 		locals[i].Locations = locs
+	}
+
+	// TODO: This fallback is likely unreachable: the only scenario (detached HEAD) is already handled above.
+	// This dead path adds computeBranchLocations calls and complexity for no gain.
+	var foundCurrent bool
+	for i := range locals {
 		if locals[i].Current {
-			topLocations = locs
+			foundCurrent = true
+			break
 		}
 	}
-
-	if topLocations == nil {
-		var err2 error
-		topLocations, err2 = computeBranchLocations(d, branch, remotes)
+	if !foundCurrent {
+		locs, err2 := computeBranchLocations(dir, branch, remotes)
 		if err2 != nil {
-			return BranchStatus{}, err2
+			err = err2
+			return
+		}
+		matched := false
+		for i := range locals {
+			if locals[i].Name == branch {
+				locals[i].Locations = locs
+				locals[i].Current = true
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			tipHash, tipUnix := tipFromLocalBranchLocation(locs)
+			locals = append([]LocalBranchRef{{
+				Name:      branch,
+				TipHash:   tipHash,
+				TipUnix:   tipUnix,
+				Current:   true,
+				Locations: locs,
+			}}, locals...)
 		}
 	}
 
-	return BranchStatus{
-		Branch:        branch,
-		Detached:      false,
-		Locations:     topLocations,
-		LocalBranches: locals,
-	}, nil
+	return
 }

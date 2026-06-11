@@ -3,8 +3,6 @@ package scanner
 import (
 	"path/filepath"
 	"strings"
-
-	"github.com/go-git/go-git/v5"
 )
 
 type Excluder struct {
@@ -14,7 +12,7 @@ type Excluder struct {
 
 func (e Excluder) IsExcluded(path string) bool {
 	dir, base := filepath.Split(path)
-	dirs := strings.Split(filepath.ToSlash(dir), string(filepath.Separator))
+	dirs := strings.Split(filepath.ToSlash(dir), "/")
 	for _, pattern := range e.files {
 		m, _ := filepath.Match(pattern, base)
 		if m {
@@ -30,16 +28,6 @@ func (e Excluder) IsExcluded(path string) bool {
 		}
 	}
 	return false
-}
-
-func (e Excluder) FilterGitStatus(st git.Status) git.Status {
-	newStatus := make(git.Status, len(st))
-	for path, status := range st {
-		if !e.IsExcluded(path) {
-			newStatus[path] = status
-		}
-	}
-	return newStatus
 }
 
 func (e Excluder) FilterPorcelainStatus(st PorcelainStatus) PorcelainStatus {

@@ -168,9 +168,9 @@ func TestLayoutBodiesZoomedPaneOnly(t *testing.T) {
 // TestSortedRepoPaths checks repository path ordering is alphabetical.
 func TestSortedRepoPaths(t *testing.T) {
 	mgs := scanner.NewMultiGitStatus()
-	mgs.Set("/z", scanner.RepoStatus{})
-	mgs.Set("/a", scanner.RepoStatus{})
-	mgs.Set("/m", scanner.RepoStatus{})
+	mgs.AddResult("/z", scanner.RepoStatus{})
+	mgs.AddResult("/a", scanner.RepoStatus{})
+	mgs.AddResult("/m", scanner.RepoStatus{})
 	got := mgs.SortedRepoPaths()
 	want := []string{"/a", "/m", "/z"}
 	for i := range want {
@@ -184,7 +184,7 @@ func TestSortedRepoPaths(t *testing.T) {
 func TestRefreshStatusContentUsesPorcelainAndSorts(t *testing.T) {
 	m := newTestModel()
 	m.repoList = []string{"/repo"}
-	m.repositories.Set("/repo", scanner.RepoStatus{
+	m.repositories.AddResult("/repo", scanner.RepoStatus{
 		Porcelain: scanner.PorcelainStatus{
 			Entries: []scanner.PorcelainEntry{
 				{Staging: 'R', Worktree: ' ', OriginalPath: "z-old.go", Path: "a-new.go"},
@@ -203,27 +203,6 @@ func TestRefreshStatusContentUsesPorcelainAndSorts(t *testing.T) {
 	}
 	if rows[1][2] != "b.go" {
 		t.Fatalf("second path = %q, want b.go", rows[1][2])
-	}
-}
-
-// TestRefreshStatusContentFallsBackToGitStatus validates status-map fallback behavior.
-func TestRefreshStatusContentFallsBackToGitStatus(t *testing.T) {
-	m := newTestModel()
-	m.repoList = []string{"/repo"}
-	m.repositories.Set("/repo", scanner.RepoStatus{
-		Status: git.Status{
-			"z.go": &git.FileStatus{Staging: 'M', Worktree: ' '},
-			"a.go": &git.FileStatus{Staging: ' ', Worktree: 'D'},
-		},
-	})
-
-	m.refreshStatusContent()
-	rows := m.statusTable.Rows()
-	if len(rows) != 2 {
-		t.Fatalf("rows len = %d, want 2", len(rows))
-	}
-	if rows[0][2] != "a.go" || rows[1][2] != "z.go" {
-		t.Fatalf("rows order = [%q, %q], want [a.go, z.go]", rows[0][2], rows[1][2])
 	}
 }
 
@@ -323,32 +302,34 @@ func TestSetLogVPContentStickyBottom(t *testing.T) {
 	}
 }
 
+func createRepoStatus(branches []scanner.LocalBranchRef, c *scanner.Config) scanner.RepoStatus {
+	st := scanner.RepoStatus{}
+	st.Branches = branches
+	st.FilteredBranches = st.Filter(c)
+	for _, lb := range branches {
+		if lb.Current {
+			st.Branch = lb.Name
+			break
+		}
+	}
+	return st
+}
+
 // TestRefreshBranchContentOneRowPerBranch verifies one table row per local branch name.
 func TestRefreshBranchContentOneRowPerBranch(t *testing.T) {
 	m := newTestModel()
 	m.repoList = []string{"/repo"}
-	m.repositories.Set("/repo", scanner.RepoStatus{
-		Branches: scanner.BranchStatus{
-			Branch: "aaa",
-			Locations: []scanner.BranchLocation{
-				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
-				{Name: "upstream", Exists: false},
-			},
-			// Names sort opposite to recency so the test proves UI order is by tip time, not name.
-			LocalBranches: []scanner.LocalBranchRef{
-				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
-					{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
-					{Name: "upstream", Exists: false},
-				}},
-				{Name: "zzz", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false, Locations: []scanner.BranchLocation{
-					{Name: "local", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
-					{Name: "origin", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
-				}},
-			},
-		},
-	})
+	m.repositories.AddResult("/repo", createRepoStatus([]scanner.LocalBranchRef{
+		{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
+			{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
+			{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
+			{Name: "upstream", Exists: false},
+		}},
+		{Name: "zzz", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false, Locations: []scanner.BranchLocation{
+			{Name: "local", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
+			{Name: "origin", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
+		}},
+	}, nil))
 
 	m.refreshBranchContent(60)
 	cols := m.branchTable.Columns()
@@ -359,7 +340,7 @@ func TestRefreshBranchContentOneRowPerBranch(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("branch rows len = %d, want 1 (in-sync branch zzz omitted)", len(rows))
 	}
-	if rows[0][0] != "aaa" {
+	if rows[0][0] != "*aaa" {
 		t.Fatalf("branch name column = %#v, want aaa (only branch with remote tip mismatch)", rows[0][0])
 	}
 	wantRemote := "origin +1-2, upstream: missing"
@@ -388,32 +369,25 @@ branches:
 		t.Fatalf("ParseConfigFile: %v", err)
 	}
 
+	st := createRepoStatus([]scanner.LocalBranchRef{
+		{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
+			{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
+			{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
+		}},
+		{Name: "wip/hidden", TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003, Current: false, Locations: []scanner.BranchLocation{
+			{Name: "local", Exists: true, TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003},
+			{Name: "origin", Exists: false},
+		}},
+		{Name: "other-local", TipHash: "eeeeeeeeeeeeeeee", TipUnix: 1_700_000_004, Current: false, Locations: []scanner.BranchLocation{
+			{Name: "local", Exists: true, TipHash: "eeeeeeeeeeeeeeee", TipUnix: 1_700_000_004},
+			{Name: "origin", Exists: false},
+		}},
+	}, cfg)
+
 	m := newTestModel()
 	m.config = cfg
 	m.repoList = []string{"/repo"}
-	m.repositories.Set("/repo", scanner.RepoStatus{
-		Branches: scanner.BranchStatus{
-			Branch: "aaa",
-			Locations: []scanner.BranchLocation{
-				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
-			},
-			LocalBranches: []scanner.LocalBranchRef{
-				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
-					{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
-				}},
-				{Name: "wip/hidden", TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003, Current: false, Locations: []scanner.BranchLocation{
-					{Name: "local", Exists: true, TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003},
-					{Name: "origin", Exists: false},
-				}},
-				{Name: "other-local", TipHash: "eeeeeeeeeeeeeeee", TipUnix: 1_700_000_004, Current: false, Locations: []scanner.BranchLocation{
-					{Name: "local", Exists: true, TipHash: "eeeeeeeeeeeeeeee", TipUnix: 1_700_000_004},
-					{Name: "origin", Exists: false},
-				}},
-			},
-		},
-	})
+	m.repositories.AddResult("/repo", st)
 
 	m.refreshBranchContent(60)
 	rows := m.branchTable.Rows()
@@ -421,7 +395,7 @@ branches:
 		t.Fatalf("branch rows len = %d, want 2 (wip/hidden omitted)", len(rows))
 	}
 	got := map[string]bool{rows[0][0]: true, rows[1][0]: true}
-	for _, name := range []string{"aaa", "other-local"} {
+	for _, name := range []string{"*aaa", "other-local"} {
 		if !got[name] {
 			t.Fatalf("branch rows = [%s %s], want aaa and other-local", rows[0][0], rows[1][0])
 		}
@@ -450,28 +424,20 @@ branches:
 		t.Fatalf("ParseConfigFile: %v", err)
 	}
 
+	st := createRepoStatus([]scanner.LocalBranchRef{
+		{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
+			{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
+			{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
+		}},
+		{Name: "main", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false, Locations: []scanner.BranchLocation{
+			{Name: "local", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
+			{Name: "origin", Exists: false},
+		}},
+	}, cfg)
 	m := newTestModel()
 	m.config = cfg
 	m.repoList = []string{"/repo"}
-	m.repositories.Set("/repo", scanner.RepoStatus{
-		Branches: scanner.BranchStatus{
-			Branch: "aaa",
-			Locations: []scanner.BranchLocation{
-				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
-			},
-			LocalBranches: []scanner.LocalBranchRef{
-				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
-					{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
-				}},
-				{Name: "main", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false, Locations: []scanner.BranchLocation{
-					{Name: "local", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
-					{Name: "origin", Exists: false},
-				}},
-			},
-		},
-	})
+	m.repositories.AddResult("/repo", st)
 
 	m.refreshBranchContent(60)
 	rows := m.branchTable.Rows()
@@ -479,7 +445,7 @@ branches:
 		t.Fatalf("branch rows len = %d, want 2 (main shown despite hide regex)", len(rows))
 	}
 	got := map[string]bool{rows[0][0]: true, rows[1][0]: true}
-	for _, name := range []string{"aaa", "main"} {
+	for _, name := range []string{"*aaa", "main"} {
 		if !got[name] {
 			t.Fatalf("branch rows = [%s %s], want aaa and main", rows[0][0], rows[1][0])
 		}
@@ -505,34 +471,25 @@ branches:
 		t.Fatalf("ParseConfigFile: %v", err)
 	}
 
+	st := createRepoStatus([]scanner.LocalBranchRef{
+		{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
+			{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
+			{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
+			{Name: "upstream", Exists: false},
+		}},
+		{Name: "main", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false, Locations: []scanner.BranchLocation{
+			{Name: "local", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
+			{Name: "origin", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
+		}},
+		{Name: "zzz", TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003, Current: false, Locations: []scanner.BranchLocation{
+			{Name: "local", Exists: true, TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003},
+			{Name: "origin", Exists: true, TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003},
+		}},
+	}, cfg)
 	m := newTestModel()
 	m.config = cfg
 	m.repoList = []string{"/repo"}
-	m.repositories.Set("/repo", scanner.RepoStatus{
-		Branches: scanner.BranchStatus{
-			Branch: "aaa",
-			Locations: []scanner.BranchLocation{
-				{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-				{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
-				{Name: "upstream", Exists: false},
-			},
-			LocalBranches: []scanner.LocalBranchRef{
-				{Name: "aaa", TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, Current: true, Locations: []scanner.BranchLocation{
-					{Name: "local", Exists: true, TipHash: "aaaaaaaaaaaaaaaa", TipUnix: 1_700_000_000, UniqueCount: 2},
-					{Name: "origin", Exists: true, TipHash: "bbbbbbbbbbbbbbbb", TipUnix: 1_700_000_001, UniqueCount: 1, Incoming: 1, Outgoing: 2},
-					{Name: "upstream", Exists: false},
-				}},
-				{Name: "main", TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002, Current: false, Locations: []scanner.BranchLocation{
-					{Name: "local", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
-					{Name: "origin", Exists: true, TipHash: "cccccccccccccccc", TipUnix: 1_700_000_002},
-				}},
-				{Name: "zzz", TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003, Current: false, Locations: []scanner.BranchLocation{
-					{Name: "local", Exists: true, TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003},
-					{Name: "origin", Exists: true, TipHash: "dddddddddddddddd", TipUnix: 1_700_000_003},
-				}},
-			},
-		},
-	})
+	m.repositories.AddResult("/repo", st)
 
 	m.refreshBranchContent(60)
 	rows := m.branchTable.Rows()
@@ -540,7 +497,7 @@ branches:
 		t.Fatalf("branch rows len = %d, want 2 (zzz in sync omitted, main listed as default)", len(rows))
 	}
 	got := map[string]bool{rows[0][0]: true, rows[1][0]: true}
-	for _, name := range []string{"aaa", "main"} {
+	for _, name := range []string{"*aaa", "main"} {
 		if !got[name] {
 			t.Fatalf("branch rows = [%s %s], want aaa and main", rows[0][0], rows[1][0])
 		}

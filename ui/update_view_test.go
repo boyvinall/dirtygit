@@ -352,7 +352,7 @@ func TestHandleScanTickFinishesScan(t *testing.T) {
 	m.scanProgressCh <- scanner.ScanProgress{ReposFound: 1, ReposChecked: 0}
 	m.scanProgressCh <- scanner.ScanProgress{ReposFound: 2, ReposChecked: 1}
 	scanMgs := scanner.NewMultiGitStatus()
-	scanMgs.Set("/repo", scanner.RepoStatus{})
+	scanMgs.AddResult("/repo", scanner.RepoStatus{})
 	m.scanResultCh <- scanResult{mgs: scanMgs}
 
 	_, cmd := m.handleScanTick()
@@ -382,41 +382,6 @@ func TestHandleSpinnerTickWhenScanning(t *testing.T) {
 	}
 }
 
-// TestWhyInclusionWKey checks that w opens the inclusion modal from the repository pane and Esc closes it.
-func TestWhyInclusionWKey(t *testing.T) {
-	m := newTestModel()
-	m.width = 100
-	m.height = 30
-	m.focus = paneRepo
-	m.repoList = []string{"/r"}
-	m.cursor = 0
-	m.repositories.Set("/r", scanner.RepoStatus{})
-
-	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
-	if !handled {
-		t.Fatal("w should be handled in repo pane")
-	}
-	if !m.whyRepoOpen {
-		t.Fatal("w should open why-inclusion modal")
-	}
-
-	s := m.renderWhyInclusionOverlay()
-	if !strings.Contains(s, "Why is this repository") {
-		t.Fatalf("modal should show title, got: %q", s)
-	}
-
-	mod, _ := m.handleWhyRepoOverlayKey(tea.KeyMsg{Type: tea.KeyEsc})
-	if mod.(*model).whyRepoOpen {
-		t.Fatal("esc should close why-inclusion modal")
-	}
-
-	m.focus = paneStatus
-	_, _, handled = m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
-	if handled {
-		t.Fatal("w with status pane focused should not be handled as command (pass through to navigation)")
-	}
-}
-
 // TestDeleteRepoDKey checks D opens the delete confirm modal, default highlights No, and
 // successful confirmation removes the path from disk and the repo list.
 func TestDeleteRepoDKey(t *testing.T) {
@@ -426,7 +391,7 @@ func TestDeleteRepoDKey(t *testing.T) {
 	m.height = 30
 	m.focus = paneRepo
 	m.repoList = []string{tmp}
-	m.repositories.Set(tmp, scanner.RepoStatus{})
+	m.repositories.AddResult(tmp, scanner.RepoStatus{})
 	m.cursor = 0
 
 	_, _, handled := m.handleCommandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'D'}})
