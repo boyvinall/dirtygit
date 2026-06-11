@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -44,10 +45,8 @@ func Run(config *scanner.Config) error {
 	log.SetOutput(m.logBuf)
 
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
-	if _, err := p.Run(); err != nil {
-		return err
-	}
-	return nil
+	_, err := p.Run()
+	return err
 }
 
 // Init starts the initial repository scan when the app launches.
@@ -72,7 +71,7 @@ func (m *model) beginScan() tea.Cmd {
 	progCh := m.scanProgressCh
 	m.scanSpinner = newScanSpinner()
 	go func() {
-		mgs, err := scanner.ScanWithProgress(m.config, func(p scanner.ScanProgress) {
+		mgs, err := scanner.ScanWithProgress(context.Background(), m.config, func(p scanner.ScanProgress) {
 			select {
 			case progCh <- p:
 			default:

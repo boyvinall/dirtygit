@@ -124,10 +124,7 @@ func Walk(ctx context.Context, config *Config, results chan string, onRepoFound 
 	var eg errgroup.Group
 	for i := range config.ScanDirs.Include {
 		eg.Go(func() error {
-			err := walkone(ctx, config.ScanDirs.Include[i], config, results, onRepoFound)
-			if err == filepath.SkipDir {
-				cancel()
-			} else if err != nil {
+			if err := walkone(ctx, config.ScanDirs.Include[i], config, results, onRepoFound); err != nil {
 				return err
 			}
 			return nil

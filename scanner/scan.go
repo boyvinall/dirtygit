@@ -2,7 +2,7 @@ package scanner
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"sync/atomic"
 	"time"
 
@@ -16,14 +16,13 @@ func reportProgress(onProgress func(ScanProgress), p ScanProgress) {
 }
 
 // Scan finds all "dirty" git repositories specified by config.
-func Scan(config *Config) (*MultiGitStatus, error) {
-	return ScanWithProgress(config, nil)
+func Scan(ctx context.Context, config *Config) (*MultiGitStatus, error) {
+	return ScanWithProgress(ctx, config, nil)
 }
 
 // ScanWithProgress runs the same scan as [Scan] and invokes onProgress from concurrent
 // discovery and the status loop. Callbacks should be non-blocking (e.g. small channel send).
-func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitStatus, error) {
-	ctx := context.Background()
+func ScanWithProgress(ctx context.Context, config *Config, onProgress func(ScanProgress)) (*MultiGitStatus, error) {
 	repositories := make(chan string, 1000)
 
 	var found, checked atomic.Uint64
@@ -52,6 +51,7 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 
 	results := NewMultiGitStatus()
 	var eg errgroup.Group
+	ex := NewExcluder(config.GitIgnore.FileGlob, config.GitIgnore.DirGlob)
 
 	for d := range repositories {
 		eg.Go(func() error {
@@ -63,7 +63,7 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 				CurrentPath:  d,
 			})
 
-			rs, include, err := StatusForRepo(config, d)
+			rs, include, err := statusForRepoWithExcluder(config, ex, d)
 			if err != nil {
 				return err
 			}
@@ -94,11 +94,14 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 // StatusForRepo returns fresh status for a single repository directory using the
 // same porcelain filtering and branch metadata as [ScanWithProgress]. The bool
 // is whether this repo should appear in the dirty list (!clean or remote mismatch).
-// If ex is nil, a new excluder is built from config (for single-repo refresh paths).
-// afterPorcelain, if non-nil, is invoked after porcelain is resolved and before
-// branch metadata is collected (used by [ScanWithProgress] for progress timing).
 func StatusForRepo(config *Config, dir string) (RepoStatus, bool, error) {
 	ex := NewExcluder(config.GitIgnore.FileGlob, config.GitIgnore.DirGlob)
+	return statusForRepoWithExcluder(config, ex, dir)
+}
+
+// statusForRepoWithExcluder is the shared implementation used by [StatusForRepo]
+// and [ScanWithProgress] (which builds the excluder once for all repos).
+func statusForRepoWithExcluder(config *Config, ex Excluder, dir string) (RepoStatus, bool, error) {
 	porcelain, err := GitStatus(dir)
 	if err != nil {
 		return RepoStatus{}, false, err
@@ -106,7 +109,10 @@ func StatusForRepo(config *Config, dir string) (RepoStatus, bool, error) {
 	porcelain = ex.FilterPorcelainStatus(porcelain)
 	branch, detached, branches, err := GitBranchStatus(dir)
 	if err != nil {
-		log.Printf("branch status scan failed for %s: %v", dir, err)
+		// Best-effort: a single repo's branch metadata failure should not abort the
+		// whole scan. The repo will still appear if it has uncommitted working-tree
+		// changes; it will just show no branch divergence information.
+		slog.Warn("branch status scan failed", "dir", dir, "err", err)
 	}
 
 	rs := RepoStatus{

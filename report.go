@@ -100,8 +100,8 @@ func buildReport(mgs *scanner.MultiGitStatus) report {
 	return report{Repos: repos}
 }
 
-func runReport(config *scanner.Config, outputFile string) error {
-	mgs, err := scanner.Scan(config)
+func runReport(ctx context.Context, config *scanner.Config, outputFile string) error {
+	mgs, err := scanner.Scan(ctx, config)
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func printReportSummary(r report) {
 		fmt.Println(repo.Path)
 		for _, b := range repo.Branches {
 			if b.ShownInTUI {
-				fmt.Printf("  %s\n", b.GetDisplayName())
+				fmt.Printf("  %s\n", b.DisplayName())
 			}
 		}
 	}
@@ -152,20 +152,11 @@ func reportCommand() *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			config, err := scanner.ParseConfigFile(cmd.Root().String("config"), defaultConfig)
+			config, err := loadConfig(cmd, defaultConfig)
 			if err != nil {
 				return err
 			}
-			if cmd.Args().Len() > 0 {
-				config.ScanDirs.Include = cmd.Args().Slice()
-			}
-			for i := range config.ScanDirs.Include {
-				config.ScanDirs.Include[i] = os.ExpandEnv(config.ScanDirs.Include[i])
-			}
-			for i := range config.ScanDirs.Exclude {
-				config.ScanDirs.Exclude[i] = os.ExpandEnv(config.ScanDirs.Exclude[i])
-			}
-			return runReport(config, cmd.String("output-file"))
+			return runReport(ctx, config, cmd.String("output-file"))
 		},
 	}
 }

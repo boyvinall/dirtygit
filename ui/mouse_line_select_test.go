@@ -13,6 +13,8 @@ import (
 // TestBubblesTableInternalFields guards against upstream field renames that
 // would cause bubblesTableSlice and bubblesTableViewportYOffset to silently
 // return zeros. Field names are verified against bubbles v1.0.0 (go.mod).
+// It also calls the functions on a populated table to confirm non-zero values
+// are returned — a silent zero return on rename would be caught here too.
 func TestBubblesTableInternalFields(t *testing.T) {
 	typ := reflect.TypeOf(table.Model{})
 	for _, name := range []string{"start", "end", "viewport"} {
@@ -23,6 +25,28 @@ func TestBubblesTableInternalFields(t *testing.T) {
 	vpField, _ := typ.FieldByName("viewport")
 	if _, ok := vpField.Type.FieldByName("YOffset"); !ok {
 		t.Error("bubbles viewport.Model missing field \"YOffset\" — update bubblesTableViewportYOffset in mouse_line_select.go")
+	}
+
+	// Confirm non-zero values are returned for a populated, scrolled table so
+	// a silent zero-return from a field rename is caught at runtime, not just
+	// at field-existence time above.
+	rows := make([]table.Row, 20)
+	for i := range rows {
+		rows[i] = table.Row{"x"}
+	}
+	tbl := table.New(
+		table.WithColumns([]table.Column{{Title: "C", Width: 10}}),
+		table.WithRows(rows),
+		table.WithHeight(5),
+		table.WithFocused(true),
+	)
+	// Move cursor well into the list so the start/end window is non-zero.
+	for i := 0; i < 15; i++ {
+		tbl.MoveDown(1)
+	}
+	start, end := bubblesTableSlice(tbl)
+	if start == 0 && end == 0 {
+		t.Error("bubblesTableSlice returned (0,0) on a scrolled table — field names may have changed")
 	}
 }
 

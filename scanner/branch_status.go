@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"sort"
@@ -16,7 +17,8 @@ func haveMergeBase(dir, commitA, commitB string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
 		return false, nil
 	}
 	return false, fmt.Errorf("git merge-base: %w", err)
@@ -71,15 +73,21 @@ func runGit(dir string, args ...string) (string, error) {
 }
 
 func currentBranch(dir string) (name string, detached bool, err error) {
+	// First try symbolic-ref to get the branch name
 	name, err = runGit(dir, "symbolic-ref", "--quiet", "--short", "HEAD")
 	if err == nil {
 		return name, false, nil
 	}
-	head, headErr := runGit(dir, "rev-parse", "--short", "HEAD")
-	if headErr != nil {
-		return "", false, headErr
+
+	// If that fails, try rev-parse to see if we are in a detached HEAD state
+	// head, err := runGit(dir, "rev-parse", "--short", "HEAD")
+	head, err := runGit(dir, "rev-parse", "HEAD")
+	if err == nil {
+		return head, true, nil
 	}
-	return head, true, nil
+
+	// If both fail, return error
+	return "", false, err
 }
 
 func listRemotes(dir string) ([]string, error) {
@@ -98,7 +106,13 @@ func listRemotes(dir string) ([]string, error) {
 func refTip(dir, ref string) (hash string, unix int64, exists bool, err error) {
 	out, err := runGit(dir, "show", "-s", "--format=%H %ct", ref)
 	if err != nil {
-		return "", 0, false, nil
+		// git show exits 128 for unknown refs; treat that as "doesn't exist" rather
+		// than an error so callers correctly see Exists=false for missing remotes.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 128 {
+			return "", 0, false, nil
+		}
+		return "", 0, false, err
 	}
 	parts := strings.Fields(out)
 	if len(parts) != 2 {
@@ -226,10 +240,6 @@ func GitBranchStatus(dir string) (branch string, detached bool, locals []LocalBr
 	if err != nil {
 		return
 	}
-	if detached {
-		locals, err = listLocalBranches(dir, branch, true)
-		return
-	}
 
 	var remotes []string
 	remotes, err = listRemotes(dir)
@@ -237,11 +247,12 @@ func GitBranchStatus(dir string) (branch string, detached bool, locals []LocalBr
 		return
 	}
 
-	locals, err = listLocalBranches(dir, branch, false)
+	locals, err = listLocalBranches(dir, branch, detached)
 	if err != nil {
 		return
 	}
 
+	// if !detached && len(locals) == 0 {
 	if len(locals) == 0 {
 		var locations []BranchLocation
 		locations, err = computeBranchLocations(dir, branch, remotes)
@@ -256,7 +267,6 @@ func GitBranchStatus(dir string) (branch string, detached bool, locals []LocalBr
 			Current:   true,
 			Locations: locations,
 		}}
-		return
 	}
 
 	for i := range locals {
@@ -268,40 +278,27 @@ func GitBranchStatus(dir string) (branch string, detached bool, locals []LocalBr
 		locals[i].Locations = locs
 	}
 
-	// TODO: This fallback is likely unreachable: the only scenario (detached HEAD) is already handled above.
-	// This dead path adds computeBranchLocations calls and complexity for no gain.
-	var foundCurrent bool
-	for i := range locals {
-		if locals[i].Current {
-			foundCurrent = true
-			break
+	if detached {
+		unix := int64(0)
+		if raw, e := runGit(dir, "log", "-1", "--format=%ct", "HEAD"); e == nil {
+			unix, _ = strconv.ParseInt(raw, 10, 64)
 		}
-	}
-	if !foundCurrent {
-		locs, err2 := computeBranchLocations(dir, branch, remotes)
-		if err2 != nil {
-			err = err2
-			return
-		}
-		matched := false
-		for i := range locals {
-			if locals[i].Name == branch {
-				locals[i].Locations = locs
-				locals[i].Current = true
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			tipHash, tipUnix := tipFromLocalBranchLocation(locs)
-			locals = append([]LocalBranchRef{{
-				Name:      branch,
-				TipHash:   tipHash,
-				TipUnix:   tipUnix,
-				Current:   true,
-				Locations: locs,
-			}}, locals...)
-		}
+		locals = append([]LocalBranchRef{
+			{
+				Name:    "HEAD",
+				TipHash: branch,
+				TipUnix: unix,
+				Current: true,
+				Locations: []BranchLocation{
+					{
+						Name:    "local",
+						Exists:  true,
+						TipHash: branch,
+						TipUnix: unix,
+					},
+				},
+			},
+		}, locals...) // avoid mutating the original slice since it may be shared with the caller
 	}
 
 	return

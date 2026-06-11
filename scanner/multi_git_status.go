@@ -7,9 +7,9 @@ import (
 
 // MultiGitStatus holds per-repository scan results. The zero value is usable:
 // reads treat a nil receiver as empty; the first AddResult or Set allocates
-// the inner map. Do not copy a non-zero MultiGitStatus (it contains a sync.Mutex).
+// the inner map. Do not copy a non-zero MultiGitStatus (it contains a sync.RWMutex).
 type MultiGitStatus struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 	m  map[string]RepoStatus
 }
 
@@ -46,8 +46,8 @@ func (m *MultiGitStatus) Get(path string) (RepoStatus, bool) {
 	if m == nil {
 		return RepoStatus{}, false
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	rs, ok := m.m[path]
 	return rs, ok
 }
@@ -57,8 +57,8 @@ func (m *MultiGitStatus) Len() int {
 	if m == nil {
 		return 0
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return len(m.m)
 }
 
@@ -67,12 +67,12 @@ func (m *MultiGitStatus) SortedRepoPaths() []string {
 	if m == nil {
 		return nil
 	}
-	m.mu.Lock()
+	m.mu.RLock()
 	paths := make([]string, 0, len(m.m))
 	for r := range m.m {
 		paths = append(paths, r)
 	}
-	m.mu.Unlock()
+	m.mu.RUnlock()
 	sort.Strings(paths)
 	return paths
 }

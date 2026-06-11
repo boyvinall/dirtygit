@@ -146,8 +146,8 @@ func (m *model) innerWidth() int {
 
 // middleRowColumnOuterWidths splits the middle row: left (Status+Branches stack) vs right (Diff).
 func (m *model) middleRowColumnOuterWidths(total int) (leftOuter, rightOuter int) {
-	if m.layoutBranchesOuter > 0 {
-		right := m.layoutBranchesOuter
+	if m.layoutDiffColumnOuter > 0 {
+		right := m.layoutDiffColumnOuter
 		right = max(layoutMinStatusBranchesColumn, min(right, total-layoutMinStatusBranchesColumn))
 		return total - right, right
 	}
@@ -380,26 +380,6 @@ func (m *model) refreshBranchContent(totalWidth int) {
 		return
 	}
 
-	// TODO
-	// branch := st.Branches
-	// if branch.Detached {
-	// 	locals := append([]scanner.LocalBranchRef(nil), branch.LocalBranches...)
-	// 	sortLocalBranchesByTipNewestFirst(locals)
-	// 	rows := make([]table.Row, 0, 1+len(locals))
-	// 	rows = append(rows, table.Row{"(detached HEAD)", shortHash(branch.Branch), "-", "-"})
-	// 	for _, lb := range locals {
-	// 		rows = append(rows, table.Row{
-	// 			lb.Name,
-	// 			shortHash(lb.TipHash),
-	// 			relativeTime(lb.TipUnix),
-	// 			"-",
-	// 		})
-	// 	}
-	// 	m.branchTable.SetRows(rows)
-	// 	m.branchTable.SetHeight(max(4, len(rows)+1))
-	// 	return
-	// }
-
 	// create a deep copy and sort it
 	locals := append([]scanner.LocalBranchRef(nil), st.FilteredBranches...)
 	sortLocalBranchesByTipNewestFirst(locals)
@@ -407,11 +387,10 @@ func (m *model) refreshBranchContent(totalWidth int) {
 	// show only the dirty branches in the UI
 	rows := make([]table.Row, 0, len(locals))
 	for _, lb := range locals {
-		// TODO: check detached head
 		remote := branchRemoteSummaryFromLocations(lb.Locations)
 
 		rows = append(rows, table.Row{
-			lb.GetDisplayName(),
+			lb.DisplayName(),
 			shortHash(lb.TipHash),
 			relativeTime(lb.TipUnix),
 			remote,

@@ -28,11 +28,11 @@ func (m *model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.height = msg.Height
 	if m.logVP.Height == 0 {
 		inner := max(layoutMinInnerContentWidth, msg.Width-4)
-		m.logVP = viewport.New(inner, layoutMinInnerContentWidth)
+		m.logVP = viewport.New(inner, layoutDefaultTableViewRows)
 	}
 	if m.diffVP.Height == 0 {
 		inner := max(layoutMinInnerContentWidth, msg.Width-4)
-		m.diffVP = viewport.New(inner, layoutMinInnerContentWidth)
+		m.diffVP = viewport.New(inner, layoutDefaultTableViewRows)
 	}
 	m.syncViewports()
 	return m, nil
@@ -99,6 +99,17 @@ func (m *model) handleHelpOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// handleConfirmNavKey handles the shared n/y/left/h/right/l navigation inside
+// any yes/no confirmation dialog.
+func (m *model) handleConfirmNavKey(msg tea.KeyMsg) {
+	switch msg.String() {
+	case "n", "left", "h":
+		m.deleteConfirmYes = false
+	case "y", "right", "l":
+		m.deleteConfirmYes = true
+	}
+}
+
 // handleDeleteRepoConfirmKey processes keys while the delete-directory confirmation is open.
 func (m *model) handleDeleteRepoConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -106,18 +117,6 @@ func (m *model) handleDeleteRepoConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		return m, tea.Quit
 	case "esc":
 		m.deleteRepoConfirmOpen = false
-		return m, nil
-	case "n":
-		m.deleteConfirmYes = false
-		return m, nil
-	case "y":
-		m.deleteConfirmYes = true
-		return m, nil
-	case "left", "h":
-		m.deleteConfirmYes = false
-		return m, nil
-	case "right", "l":
-		m.deleteConfirmYes = true
 		return m, nil
 	case "enter":
 		m.deleteRepoConfirmOpen = false
@@ -127,6 +126,7 @@ func (m *model) handleDeleteRepoConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		m.deleteSelectedRepoFromDisk()
 		return m, nil
 	default:
+		m.handleConfirmNavKey(msg)
 		return m, nil
 	}
 }
@@ -139,18 +139,6 @@ func (m *model) handleCheckoutStatusFileConfirmKey(msg tea.KeyMsg) (tea.Model, t
 	case "esc":
 		m.checkoutStatusFileConfirmOpen = false
 		m.checkoutStatusFilePendingRel = ""
-		return m, nil
-	case "n":
-		m.deleteConfirmYes = false
-		return m, nil
-	case "y":
-		m.deleteConfirmYes = true
-		return m, nil
-	case "left", "h":
-		m.deleteConfirmYes = false
-		return m, nil
-	case "right", "l":
-		m.deleteConfirmYes = true
 		return m, nil
 	case "enter":
 		m.checkoutStatusFileConfirmOpen = false
@@ -169,6 +157,7 @@ func (m *model) handleCheckoutStatusFileConfirmKey(msg tea.KeyMsg) (tea.Model, t
 		m.syncViewports()
 		return m, nil
 	default:
+		m.handleConfirmNavKey(msg)
 		return m, nil
 	}
 }
@@ -182,18 +171,6 @@ func (m *model) handleDeleteStatusFileConfirmKey(msg tea.KeyMsg) (tea.Model, tea
 		m.deleteStatusFileConfirmOpen = false
 		m.deleteStatusFilePendingRel = ""
 		return m, nil
-	case "n":
-		m.deleteConfirmYes = false
-		return m, nil
-	case "y":
-		m.deleteConfirmYes = true
-		return m, nil
-	case "left", "h":
-		m.deleteConfirmYes = false
-		return m, nil
-	case "right", "l":
-		m.deleteConfirmYes = true
-		return m, nil
 	case "enter":
 		m.deleteStatusFileConfirmOpen = false
 		pending := m.deleteStatusFilePendingRel
@@ -204,6 +181,7 @@ func (m *model) handleDeleteStatusFileConfirmKey(msg tea.KeyMsg) (tea.Model, tea
 		m.deletePendingStatusFileFromDisk(pending)
 		return m, nil
 	default:
+		m.handleConfirmNavKey(msg)
 		return m, nil
 	}
 }
