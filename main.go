@@ -37,7 +37,6 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			reportCommand(),
-			validateReportCommand(),
 		},
 		Flags: []cli.Flag{
 			&cli.StringFlag{

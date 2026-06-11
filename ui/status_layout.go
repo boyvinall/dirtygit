@@ -391,68 +391,44 @@ func (m *model) refreshBranchContent(totalWidth int) {
 		m.branchTable.SetHeight(layoutMinBodyLines)
 		return
 	}
-	branch := st.Branches
 
-	if branch.Detached {
-		locals := append([]scanner.LocalBranchRef(nil), branch.LocalBranches...)
-		sortLocalBranchesByTipNewestFirst(locals)
-		rows := make([]table.Row, 0, 1+len(locals))
-		rows = append(rows, table.Row{"(detached HEAD)", shortHash(branch.Branch), "-", "-"})
-		for _, lb := range locals {
-			always := m.config != nil && m.config.AlwaysListBranch(lb.Name)
-			if m.config != nil && m.config.ShouldHideLocalOnlyBranch(lb) && !always {
-				continue
-			}
-			rows = append(rows, table.Row{
-				lb.Name,
-				shortHash(lb.TipHash),
-				relativeTime(lb.TipUnix),
-				"-",
-			})
-		}
-		m.branchTable.SetRows(rows)
-		m.branchTable.SetHeight(max(4, len(rows)+1))
-		return
-	}
+	// branch := st.Branches
+	// if branch.Detached {
+	// 	locals := append([]scanner.LocalBranchRef(nil), branch.LocalBranches...)
+	// 	sortLocalBranchesByTipNewestFirst(locals)
+	// 	rows := make([]table.Row, 0, 1+len(locals))
+	// 	rows = append(rows, table.Row{"(detached HEAD)", shortHash(branch.Branch), "-", "-"})
+	// 	for _, lb := range locals {
+	// 		rows = append(rows, table.Row{
+	// 			lb.Name,
+	// 			shortHash(lb.TipHash),
+	// 			relativeTime(lb.TipUnix),
+	// 			"-",
+	// 		})
+	// 	}
+	// 	m.branchTable.SetRows(rows)
+	// 	m.branchTable.SetHeight(max(4, len(rows)+1))
+	// 	return
+	// }
 
-	if len(branch.LocalBranches) == 0 {
-		remote := branchRemoteSummary(branch)
-		tip := "-"
-		when := "-"
-		for _, loc := range branch.CurrentBranchLocations() {
-			if loc.Name == "local" && loc.Exists {
-				tip = shortHash(loc.TipHash)
-				when = relativeTime(loc.TipUnix)
-				break
-			}
-		}
-		m.branchTable.SetRows([]table.Row{{branch.Branch, tip, when, remote}})
-		m.branchTable.SetHeight(4)
-		return
-	}
-
-	locals := append([]scanner.LocalBranchRef(nil), branch.LocalBranches...)
+	// create a deep copy and sort it
+	locals := append([]scanner.LocalBranchRef(nil), st.FilteredBranches...)
 	sortLocalBranchesByTipNewestFirst(locals)
+
+	// show only the dirty branches in the UI
 	rows := make([]table.Row, 0, len(locals))
 	for _, lb := range locals {
-		always := m.config != nil && m.config.AlwaysListBranch(lb.Name)
-		if m.config != nil && m.config.ShouldHideLocalOnlyBranch(lb) && !always {
-			continue
-		}
-		if !lb.HasTipMismatchAcrossRemotes() && !always {
-			continue
-		}
+		// TODO: check detached head
 		remote := branchRemoteSummaryFromLocations(lb.Locations)
+
 		rows = append(rows, table.Row{
-			lb.Name,
+			lb.GetDisplayName(),
 			shortHash(lb.TipHash),
 			relativeTime(lb.TipUnix),
 			remote,
 		})
 	}
-	if len(rows) == 0 {
-		rows = []table.Row{{"(in sync with remotes)", "-", "-", "-"}}
-	}
+
 	m.branchTable.SetRows(rows)
 	m.branchTable.SetHeight(max(4, len(rows)+1))
 }
@@ -605,7 +581,7 @@ func (m *model) repoPaneReady() bool {
 // interactiveAppReady is true when the main TUI (not a modal) is on screen and idle.
 func (m *model) interactiveAppReady() bool {
 	return !m.helpOpen && !m.deleteRepoConfirmOpen && !m.deleteStatusFileConfirmOpen &&
-		!m.checkoutStatusFileConfirmOpen && !m.whyRepoOpen && !m.scanning && m.err == nil
+		!m.checkoutStatusFileConfirmOpen && !m.scanning && m.err == nil
 }
 
 // mouseFocusClickReady is true when left-click to change pane focus is allowed.

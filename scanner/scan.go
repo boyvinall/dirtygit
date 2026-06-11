@@ -78,7 +78,7 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 				ReposChecked: int(n),
 				CurrentPath:  d,
 			})
-			log.Println(d, statusDur)
+			// log.Println(d, statusDur)
 
 			if include {
 				atomic.AddInt64(&totalStatusDuration, statusDur.Nanoseconds())
@@ -93,8 +93,8 @@ func ScanWithProgress(config *Config, onProgress func(ScanProgress)) (*MultiGitS
 	if statusErr != nil {
 		return nil, statusErr
 	}
-	log.Println("walkDuration:", w.duration)
-	log.Println("statusDuration:", time.Duration(atomic.LoadInt64(&totalStatusDuration)))
+	// log.Println("walkDuration:", w.duration)
+	// log.Println("statusDuration:", time.Duration(atomic.LoadInt64(&totalStatusDuration)))
 	return results, w.err
 }
 
@@ -117,13 +117,13 @@ func StatusForRepo(config *Config, dir string) (RepoStatus, bool, error) {
 	if err != nil {
 		log.Printf("branch status scan failed for %s: %v", dir, err)
 	}
-	branches.FilterLocalOnlyForConfig(config)
 
 	rs := RepoStatus{
-		Status:    st,
-		Porcelain: porcelain,
-		Branches:  branches,
+		Status:           st,
+		Porcelain:        porcelain,
+		Branches:         branches,
+		FilteredBranches: branches.Filter(config),
 	}
-	include := !st.IsClean() || branches.HasLocalRemoteMismatch()
+	include := !st.IsClean() || rs.Branches.HasUnpushedChanges(config)
 	return rs, include, nil
 }

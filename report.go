@@ -25,20 +25,12 @@ type reportLocationEntry struct {
 
 // reportBranchEntry is one local branch row in the report.
 type reportBranchEntry struct {
-	Name string `json:"name"`
-	// TipHash is the full object name of the local ref tip.
-	TipHash string `json:"tip_hash"`
-	TipUnix int64  `json:"tip_unix"`
-	Current bool   `json:"current"`
+	scanner.LocalBranchRef
+
 	// ShownInTUI is true when this branch appears in the TUI Branches pane for its
 	// repository (HasTipMismatchAcrossRemotes or listed under branches.default).
-	ShownInTUI bool `json:"shown_in_tui"`
-	// ExcludedByConfig is true when this branch was removed from the branch list by
-	// FilterLocalOnlyForConfig (branches.hidelocalonly.regex matched and the branch
-	// is not in branches.default). Such branches are never shown in the TUI.
-	ExcludedByConfig bool                  `json:"excluded_by_config"`
-	IsLocalOnly      bool                  `json:"is_local_only"`
-	Locations        []reportLocationEntry `json:"locations"`
+	ShownInTUI  bool `json:"shown_in_tui"`
+	IsLocalOnly bool `json:"is_local_only"`
 }
 
 // reportFileEntry is one porcelain status entry for a file.
@@ -52,11 +44,8 @@ type reportFileEntry struct {
 
 // reportRepo is the per-repository section of the report.
 type reportRepo struct {
-	Path string `json:"path"`
-	// InclusionReasons lists why this repository appears in the TUI (non-clean or
-	// local/remote mismatch). Mirrors scanner.RepoInclusionReasons.
-	InclusionReasons []string `json:"inclusion_reasons"`
-	IsClean          bool     `json:"is_clean"`
+	Path    string `json:"path"`
+	IsClean bool   `json:"is_clean"`
 	// Files are the uncommitted working-tree changes (porcelain entries).
 	Files []reportFileEntry `json:"files"`
 	// CurrentBranch is the checked-out branch short name, or the short HEAD hash when detached.
@@ -94,147 +83,83 @@ func buildReport(config *scanner.Config, mgs *scanner.MultiGitStatus) report {
 			})
 		}
 
-		// Branches — get the unfiltered list so we can annotate ExcludedByConfig.
-		unfiltered, err := scanner.GitBranchStatus(path)
-		if err != nil {
-			// Fall back to the already-filtered branches from the scan result.
-			unfiltered = rs.Branches
-		}
-
 		// Build a set of branch names that survived FilterLocalOnlyForConfig.
-		filteredSet := make(map[string]struct{}, len(rs.Branches.LocalBranches))
-		for _, lb := range rs.Branches.LocalBranches {
+		filteredSet := make(map[string]struct{}, len(rs.FilteredBranches))
+		for _, lb := range rs.FilteredBranches {
 			filteredSet[lb.Name] = struct{}{}
 		}
 
-		branches := make([]reportBranchEntry, 0, len(unfiltered.LocalBranches))
-		for _, lb := range unfiltered.LocalBranches {
+		branches := make([]reportBranchEntry, 0, len(rs.Branches.LocalBranches))
+		for _, lb := range rs.Branches.LocalBranches {
 			_, survived := filteredSet[lb.Name]
-			excludedByConfig := !survived
-
-			always := config != nil && config.AlwaysListBranch(lb.Name)
-			shownInTUI := !excludedByConfig && (lb.HasTipMismatchAcrossRemotes() || always)
-
-			locs := make([]reportLocationEntry, 0, len(lb.Locations))
-			for _, loc := range lb.Locations {
-				locs = append(locs, reportLocationEntry{
-					Name:               loc.Name,
-					Exists:             loc.Exists,
-					TipHash:            loc.TipHash,
-					TipUnix:            loc.TipUnix,
-					UniqueCount:        loc.UniqueCount,
-					Incoming:           loc.Incoming,
-					Outgoing:           loc.Outgoing,
-					HistoriesUnrelated: loc.HistoriesUnrelated,
-				})
-			}
 
 			branches = append(branches, reportBranchEntry{
-				Name:             lb.Name,
-				TipHash:          lb.TipHash,
-				TipUnix:          lb.TipUnix,
-				Current:          lb.Current,
-				ShownInTUI:       shownInTUI,
-				ExcludedByConfig: excludedByConfig,
-				IsLocalOnly:      lb.IsLocalOnly(),
-				Locations:        locs,
+				LocalBranchRef: lb,
+				ShownInTUI:     survived,
+				IsLocalOnly:    lb.IsLocalOnly(),
 			})
 		}
 
 		repos = append(repos, reportRepo{
-			Path:             path,
-			InclusionReasons: scanner.RepoInclusionReasons(rs),
-			IsClean:          rs.IsClean(),
-			Files:            files,
-			CurrentBranch:    rs.Branches.Branch,
-			Detached:         rs.Branches.Detached,
-			Branches:         branches,
+			Path:          path,
+			IsClean:       rs.IsClean(),
+			Files:         files,
+			CurrentBranch: rs.Branches.Branch,
+			Detached:      rs.Branches.Detached,
+			Branches:      branches,
 		})
 	}
 
 	return report{Repos: repos}
 }
 
-func runReport(config *scanner.Config) error {
+func runReport(config *scanner.Config, outputFile string) error {
 	mgs, err := scanner.Scan(config)
 	if err != nil {
 		return err
 	}
 
 	r := buildReport(config, mgs)
-
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	return enc.Encode(r)
-}
-
-// validateReport checks a report for consistency against the given config.
-// Each returned string is one violation message.
-func validateReport(config *scanner.Config, r report) []string {
-	var violations []string
-	for _, repo := range r.Repos {
-		hasShown := false
-		for _, b := range repo.Branches {
-			if b.ShownInTUI {
-				hasShown = true
-			}
-			if b.ExcludedByConfig && b.ShownInTUI {
-				violations = append(violations, fmt.Sprintf("%s: branch %q is excluded by config but shown_in_tui=true", repo.Path, b.Name))
-			}
-			if b.IsLocalOnly {
-				lb := scanner.LocalBranchRef{
-					Name:      b.Name,
-					Locations: []scanner.BranchLocation{{Name: "local", Exists: true}},
-				}
-				if config.ShouldHideLocalOnlyBranch(lb) && !config.AlwaysListBranch(b.Name) && !b.ExcludedByConfig {
-					violations = append(violations, fmt.Sprintf("%s: branch %q matches hidelocalonly regex but excluded_by_config is not set", repo.Path, b.Name))
-				}
-			}
+	if outputFile != "" {
+		f, err := os.Create(outputFile)
+		if err != nil {
+			return err
 		}
-		if !hasShown {
-			violations = append(violations, fmt.Sprintf("%s: no branch has shown_in_tui=true", repo.Path))
+		defer f.Close()
+		enc := json.NewEncoder(f)
+		enc.SetIndent("", "  ")
+		err = enc.Encode(r)
+		if err != nil {
+			return err
 		}
 	}
-	return violations
+
+	printReportSummary(r)
+	return nil
 }
 
-func validateReportCommand() *cli.Command {
-	return &cli.Command{
-		Name:   "validate-report",
-		Usage:  "Validate a JSON report file from the report command",
-		Hidden: true,
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if cmd.Args().Len() != 1 {
-				return fmt.Errorf("expected exactly one argument: <report.json>")
+func printReportSummary(r report) {
+	for _, repo := range r.Repos {
+		fmt.Println(repo.Path)
+		for _, b := range repo.Branches {
+			if b.ShownInTUI {
+				fmt.Printf("  %s\n", b.GetDisplayName())
 			}
-			config, err := scanner.ParseConfigFile(cmd.Root().String("config"), defaultConfig)
-			if err != nil {
-				return err
-			}
-			data, err := os.ReadFile(cmd.Args().First())
-			if err != nil {
-				return err
-			}
-			var r report
-			if err := json.Unmarshal(data, &r); err != nil {
-				return fmt.Errorf("failed to parse report: %w", err)
-			}
-			violations := validateReport(config, r)
-			for _, v := range violations {
-				fmt.Fprintln(os.Stderr, v)
-			}
-			if len(violations) > 0 {
-				return cli.Exit("", 1)
-			}
-			return nil
-		},
+		}
 	}
 }
 
 func reportCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "report",
-		Usage: "Print a JSON report of all dirty/diverged repositories (equivalent to TUI state)",
+		Usage: "Report on dirty/diverged repositories (equivalent to TUI state)",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "output-file",
+				Aliases: []string{"o"},
+				Usage:   "Write json report to this file",
+			},
+		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			config, err := scanner.ParseConfigFile(cmd.Root().String("config"), defaultConfig)
 			if err != nil {
@@ -249,7 +174,7 @@ func reportCommand() *cli.Command {
 			for i := range config.ScanDirs.Exclude {
 				config.ScanDirs.Exclude[i] = os.ExpandEnv(config.ScanDirs.Exclude[i])
 			}
-			return runReport(config)
+			return runReport(config, cmd.String("output-file"))
 		},
 	}
 }

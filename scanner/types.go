@@ -16,8 +16,9 @@ import (
 type RepoStatus struct {
 	git.Status
 
-	Porcelain PorcelainStatus
-	Branches  BranchStatus
+	Porcelain        PorcelainStatus
+	Branches         BranchStatus
+	FilteredBranches []LocalBranchRef
 }
 
 // BranchStatus is HEAD identity plus an ordered list of local branch refs and
@@ -47,6 +48,13 @@ type LocalBranchRef struct {
 	// Locations compares this local branch to same-named refs on each configured
 	// remote; see [BranchLocation]. Empty when detached or before branch scan fills it.
 	Locations []BranchLocation
+}
+
+func (lbr *LocalBranchRef) GetDisplayName() string {
+	if lbr.Current {
+		return "*" + lbr.Name
+	}
+	return lbr.Name
 }
 
 // BranchLocation is one side of a local branch compared to same-named remotes:
@@ -81,39 +89,6 @@ type BranchLocation struct {
 	// HistoriesUnrelated means git found no merge base between local and this
 	// remote tip; the UI shows "differs" instead of numeric deltas.
 	HistoriesUnrelated bool
-}
-
-// HasTipMismatchAcrossRemotes reports whether the branch should appear in the
-// branch pane: true when Locations is empty (e.g. detached), there are no
-// configured remotes, any same-named remote ref is missing, or any remote tip
-// differs from the local tip. False only when every remote has the ref and each
-// tip matches local.
-func (lb LocalBranchRef) HasTipMismatchAcrossRemotes() bool {
-	if len(lb.Locations) == 0 {
-		return true
-	}
-	var local *BranchLocation
-	for i := range lb.Locations {
-		if lb.Locations[i].Name == "local" {
-			local = &lb.Locations[i]
-			break
-		}
-	}
-	if local == nil || !local.Exists {
-		return true
-	}
-	hasRemote := false
-	for i := range lb.Locations {
-		loc := lb.Locations[i]
-		if loc.Name == "local" {
-			continue
-		}
-		hasRemote = true
-		if !loc.Exists || loc.TipHash != local.TipHash {
-			return true
-		}
-	}
-	return !hasRemote
 }
 
 // IsLocalOnly reports whether no configured remote has a same-named branch ref
@@ -151,28 +126,20 @@ func (b *BranchStatus) CurrentBranchLocations() []BranchLocation {
 	return nil
 }
 
-// HasLocalRemoteMismatch reports whether the current local branch differs from
-// any tracked remote location for the same branch name. A clean repo that is
-// only behind the remote (incoming commits, nothing to push) is not a mismatch.
-func (b *BranchStatus) HasLocalRemoteMismatch() bool {
-	if b.Detached {
-		return false
-	}
-
-	return len(b.GetMismatchedBranches()) > 0
-}
-
-func (b *BranchStatus) GetMismatchedBranches() []LocalBranchRef {
-	mismatchedBranches := []LocalBranchRef{}
-	for i := range b.LocalBranches {
-		if b.LocalBranches[i].IsMisMatchAcrossRemotes() {
-			mismatchedBranches = append(mismatchedBranches, b.LocalBranches[i])
+func (b *BranchStatus) HasUnpushedChanges(c *Config) bool {
+	for _, lb := range b.LocalBranches {
+		if c.ShouldHideLocalOnlyBranch(lb) {
+			continue
+		}
+		if lb.HasUnpushedChanges() {
+			return true
 		}
 	}
-	return mismatchedBranches
+	return false
 }
 
-func (lb *LocalBranchRef) IsMisMatchAcrossRemotes() bool {
+// HasUnpushedChanges reports whether the local branch has any commits not on any of the remotes,
+func (lb *LocalBranchRef) HasUnpushedChanges() bool {
 	locs := lb.Locations
 	if len(locs) == 0 {
 		return false
@@ -213,26 +180,25 @@ func (lb *LocalBranchRef) IsMisMatchAcrossRemotes() bool {
 	return false
 }
 
-// FilterLocalOnlyForConfig filters out local-only branches that
-// [Config.ShouldHideLocalOnlyBranch] matches unless [Config.AlwaysListBranch] applies.
+// Filter filters out local-only branches that
+// [Config.ShouldHideLocalOnlyBranch] matches.
 // The checked-out branch is never removed so HEAD remote comparison stays available.
-func (b *BranchStatus) FilterLocalOnlyForConfig(c *Config) {
-	refs := b.LocalBranches
-	if c == nil || len(refs) == 0 {
-		return
-	}
+func (b *BranchStatus) Filter(c *Config) []LocalBranchRef {
 	out := make([]LocalBranchRef, 0)
-	for _, lb := range refs {
-		// if lb.Current {
-		// 	out = append(out, lb)
-		// 	continue
-		// }
-		if c.ShouldHideLocalOnlyBranch(lb) && !c.AlwaysListBranch(lb.Name) {
+	for _, lb := range b.LocalBranches {
+		if lb.Current {
+			out = append(out, lb)
+			continue
+		}
+		if !lb.HasUnpushedChanges() {
+			continue
+		}
+		if c.ShouldHideLocalOnlyBranch(lb) {
 			continue
 		}
 		out = append(out, lb)
 	}
-	b.LocalBranches = out
+	return out
 }
 
 // LocalRemoteMismatchReasons returns a short line explaining why
@@ -360,13 +326,15 @@ type Config struct {
 		Command []string `yaml:"command"`
 	} `yaml:"edit"`
 	localOnlyHideCompiled []*regexp.Regexp
-	branchDefaultAlways   map[string]struct{}
 }
 
 // ShouldHideLocalOnlyBranch returns true when lb is local-only (see
 // LocalBranchRef.IsLocalOnly) and its short branch name matches any pattern in
 // branches.hidelocalonly.regex.
 func (c *Config) ShouldHideLocalOnlyBranch(lb LocalBranchRef) bool {
+	if c == nil {
+		return false
+	}
 	if len(c.localOnlyHideCompiled) == 0 {
 		return false
 	}
@@ -379,17 +347,6 @@ func (c *Config) ShouldHideLocalOnlyBranch(lb LocalBranchRef) bool {
 		}
 	}
 	return false
-}
-
-// AlwaysListBranch reports whether name is listed under branches.default
-// (after trim); those branches are listed in the pane whenever they exist
-// locally, regardless of remote tip agreement.
-func (c *Config) AlwaysListBranch(name string) bool {
-	if len(c.branchDefaultAlways) == 0 {
-		return false
-	}
-	_, ok := c.branchDefaultAlways[name]
-	return ok
 }
 
 const editRepoPlaceholder = "{repo}"

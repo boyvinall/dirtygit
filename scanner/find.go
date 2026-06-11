@@ -57,7 +57,7 @@ func walkone(ctx context.Context, dir string, config *Config, results chan strin
 		}
 
 		if d.IsDir() {
-			log.Printf("path %s", path)
+			// log.Printf("path %s", path)
 		}
 
 		if slices.Contains(config.ScanDirs.Exclude, path) {
@@ -77,7 +77,7 @@ func walkone(ctx context.Context, dir string, config *Config, results chan strin
 			return metaErr
 		}
 		if ok {
-			log.Printf("git %s", path)
+			// log.Printf("git %s", path)
 			repo := filepath.Dir(path)
 			if onRepoFound != nil {
 				onRepoFound(repo)

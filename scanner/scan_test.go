@@ -180,34 +180,6 @@ branches:
 	}
 }
 
-func TestParseConfigFileDefaultBranches(t *testing.T) {
-	tmp := t.TempDir()
-	cfgPath := filepath.Join(tmp, "defaults.yml")
-	content := `
-scandirs:
-  include:
-    - /opt/repos
-branches:
-  default:
-    - main
-    - master
-`
-	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-
-	cfg, err := ParseConfigFile(cfgPath, "")
-	if err != nil {
-		t.Fatalf("ParseConfigFile() error = %v", err)
-	}
-	if !cfg.AlwaysListBranch("main") || !cfg.AlwaysListBranch("master") {
-		t.Fatalf("AlwaysListBranch: main=%v master=%v", cfg.AlwaysListBranch("main"), cfg.AlwaysListBranch("master"))
-	}
-	if cfg.AlwaysListBranch("develop") {
-		t.Fatal("AlwaysListBranch(develop) should be false")
-	}
-}
-
 func TestStatusForRepo(t *testing.T) {
 	tmp := t.TempDir()
 	gitMinimalInit(t, tmp)

@@ -99,19 +99,6 @@ func (m *model) handleHelpOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// handleWhyRepoOverlayKey processes keys while the "why listed" modal is open.
-func (m *model) handleWhyRepoOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c", "q":
-		return m, tea.Quit
-	case "esc", "w":
-		m.whyRepoOpen = false
-		return m, nil
-	default:
-		return m, nil
-	}
-}
-
 // handleDeleteRepoConfirmKey processes keys while the delete-directory confirmation is open.
 func (m *model) handleDeleteRepoConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -367,12 +354,6 @@ func (m *model) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	case "t":
 		m.openTerminalInCurrentRepo()
 		return m, nil, true
-	case "w":
-		if m.repoPaneReady() {
-			m.whyRepoOpen = true
-			return m, nil, true
-		}
-		return m, nil, false
 	case "D":
 		if path, ok := m.selectedStatusPathForOps(); ok {
 			m.deleteStatusFileConfirmOpen = true
@@ -603,9 +584,6 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.checkoutStatusFileConfirmOpen {
 		return m.handleCheckoutStatusFileConfirmKey(msg)
-	}
-	if m.whyRepoOpen {
-		return m.handleWhyRepoOverlayKey(msg)
 	}
 	if m.scanning {
 		return m.handleScanningKey(msg)

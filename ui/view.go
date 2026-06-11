@@ -6,8 +6,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-
-	"github.com/boyvinall/dirtygit/scanner"
 )
 
 // placeCenteredDimModal centers content on the full terminal with a dim tiled backdrop.
@@ -145,34 +143,6 @@ func (m *model) helpPanel() string {
 	// Match other panes: title sits in the top border (see framedBlock).
 	// Use paneRepo so Diff's framedBlock title override (worktree/staged) does not replace this title.
 	return m.framedBlock(paneRepo, w, h, "Keyboard shortcuts", padded)
-}
-
-// renderWhyInclusionOverlay shows why the selected repository appears in the list.
-func (m *model) renderWhyInclusionOverlay() string {
-	repo := m.currentRepo()
-	boxW := min(m.width-layoutModalSideGutter, layoutWhyAndConfirmModalMaxBox)
-	if boxW < layoutModalBoxMinWidth {
-		boxW = min(m.width-2, layoutModalBoxMinWidth)
-	}
-	innerW := max(layoutMinInnerContentWidth, boxW-layoutModalSideGutter)
-	if repo == "" {
-		return m.placeCenteredDimModal(roundedModal(boxW).Render("No repository selected."))
-	}
-	rs, ok := m.repositories.Get(repo)
-	if !ok {
-		return m.placeCenteredDimModal(roundedModal(boxW).Render("No status data for this path."))
-	}
-	lines := scanner.RepoInclusionReasons(rs)
-	if len(lines) == 0 {
-		lines = []string{"No inclusion reason (unexpected for a listed repository)."}
-	}
-	reasons := strings.Join(lines, "\n\n")
-	wrapped := lipgloss.NewStyle().Width(innerW).MaxWidth(innerW).Render(reasons)
-	t := styleBold.Render("Why is this repository listed?")
-	sub := styleDim.Render(truncateASCII(repo, innerW))
-	foot := styleDim.Render("w or Esc to close")
-	inner := strings.Join([]string{t, "", sub, "", wrapped, "", foot}, "\n")
-	return m.placeCenteredDimModal(roundedModal(boxW).Render(inner))
 }
 
 // renderDeleteRepoConfirmOverlay asks whether to recursively delete the selected repository directory.
@@ -450,9 +420,6 @@ func (m *model) View() string {
 	}
 	if m.checkoutStatusFileConfirmOpen {
 		return m.renderCheckoutStatusFileConfirmOverlay()
-	}
-	if m.whyRepoOpen {
-		return m.renderWhyInclusionOverlay()
 	}
 	if m.height < layoutMinTermHeight {
 		return styleErr.Render(fmt.Sprintf("Need bigger screen (min height %d).", layoutMinTermHeight))
